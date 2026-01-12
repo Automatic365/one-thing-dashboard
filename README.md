@@ -60,11 +60,14 @@ Set up your complete goal hierarchy:
 
 Each level includes the Focusing Question to guide your thinking.
 
-### 3. Time Blocking
+### 3. Time Blocking (with 4-1-1 System)
+- **The 4-1-1 Time Blocking System**:
+  - **4 hours daily**: Block 4 hours every day for your ONE Thing (default duration)
+  - **1 hour weekly**: Review your annual and monthly goals, plan your week
+  - **1 hour annually**: Review your someday and 5-year goals, set annual goals
 - Schedule dedicated time blocks for your ONE Thing
-- Recommended 4-hour blocks for maximum focus
-- Visual calendar to see your commitments
-- Mark blocks as complete when done
+- Visual reminders when weekly/annual reviews are due
+- Mark blocks and reviews as complete when done
 - Quick-add today's ONE Thing as a time block
 
 ### 4. Progress Tracking
@@ -104,6 +107,32 @@ Fill in each level, asking yourself:
 - Each day, set a new ONE Thing aligned with your weekly goal
 - Each week, update your weekly ONE Thing aligned with your monthly goal
 - Keep the domino effect going!
+
+## The 4-1-1 Time Blocking System
+
+The app implements the complete 4-1-1 system from The ONE Thing book:
+
+### 4 Hours Daily
+- Block 4 hours every day for your most important work
+- The time block duration defaults to 4 hours (you can adjust if needed)
+- Protect this time - no meetings, no interruptions
+- This is your path to mastery and extraordinary results
+
+### 1 Hour Weekly (Every 7 Days)
+- Review your annual and monthly goals
+- Ask: "What's the ONE Thing I need to do this week to stay on track?"
+- Update your weekly goals for each active life area
+- The app will remind you when it's been 7+ days since your last review
+- Click "Mark Done" in the Time Blocking tab after completing your review
+
+### 1 Hour Annually (Every 365 Days)
+- Review your someday and 5-year goals
+- Assess your progress and adjust as needed
+- Set or update your annual goals
+- The app will remind you when it's been a year since your last review
+- Click "Mark Done" in the Time Blocking tab after completing your review
+
+**Why This Works**: The 4-1-1 system ensures you're always connected to your big picture while taking daily action. You're never just busy - you're productive on what matters most.
 
 ## Tips for Success
 
