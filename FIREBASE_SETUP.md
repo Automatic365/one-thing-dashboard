@@ -59,11 +59,19 @@ const firebaseConfig = {
 
 2. **Click "Get started"**
 
-3. **Click "Email/Password"** in the Sign-in method list
-
-4. **Toggle "Email/Password" to ENABLED**
+3. **Enable Email/Password**:
+   - Click "Email/Password" in the Sign-in method list
+   - Toggle "Email/Password" to **ENABLED**
    - Leave "Email link" disabled
    - Click "Save"
+
+4. **Enable Google Sign-In**:
+   - Click "Google" in the Sign-in method list
+   - Toggle the switch to **ENABLED**
+   - Enter your project support email (your Gmail address)
+   - Click "Save"
+
+Now users can sign in with either email/password OR their Google account!
 
 ## Step 4: Enable Firestore Database (2 minutes)
 
