@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Backup files
+*.backup.html
+*.bak
+
+# Local configuration (if you create a separate config file)
+firebase-config.js
+config.local.js
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
