@@ -9,6 +9,11 @@
 firebase-config.js
 config.local.js
 
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
 # Editor files
 .vscode/
 .idea/
