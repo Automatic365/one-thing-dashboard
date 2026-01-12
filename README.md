@@ -22,6 +22,24 @@ A complete web-based productivity app based on "The ONE Thing" by Gary Keller an
    ```
 4. Open your browser and go to: `http://localhost:8000`
 
+## Cross-Device Sync (Optional but Recommended!)
+
+By default, your data is stored locally on your device. To sync across ALL your devices:
+
+1. **Follow the Firebase Setup Guide**: Open `FIREBASE_SETUP.md` (takes ~10 minutes)
+2. **Create a free Firebase account** and get your config
+3. **Paste the config** into `index.html` (clear instructions in the guide)
+4. **Done!** Your data now syncs in real-time across all devices
+
+**Benefits:**
+- Access your goals from phone, tablet, laptop, work computer - anywhere!
+- Real-time sync - changes appear instantly on all devices
+- Automatic cloud backup - never lose your data
+- 100% free forever (generous free tier you'll never exceed)
+- Still completely private - only you can access your data
+
+**Without Firebase:** The app works perfectly on a single device using localStorage
+
 ## Features
 
 ### 1. Dashboard (The Now)

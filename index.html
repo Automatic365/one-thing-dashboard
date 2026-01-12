@@ -4,10 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The ONE Thing - Focus on What Matters Most</title>
+
+    <!-- React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -101,6 +111,14 @@
         .fade-in {
             animation: fadeIn 0.5s ease;
         }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -109,7 +127,40 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback } = React;
 
-        // Motivational quotes from The ONE Thing
+        // ==========================================
+        // FIREBASE CONFIGURATION
+        // ==========================================
+        // IMPORTANT: Replace this with your Firebase config
+        // Get this from: Firebase Console > Project Settings > Your apps > Config
+        const FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Check if Firebase is configured
+        const isFirebaseConfigured = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
+
+        // Initialize Firebase only if configured
+        let db = null;
+        let auth = null;
+
+        if (isFirebaseConfigured) {
+            try {
+                firebase.initializeApp(FIREBASE_CONFIG);
+                db = firebase.firestore();
+                auth = firebase.auth();
+            } catch (error) {
+                console.error("Firebase initialization error:", error);
+            }
+        }
+
+        // ==========================================
+        // QUOTES
+        // ==========================================
         const QUOTES = [
             "What's the ONE Thing I can do such that by doing it everything else will be easier or unnecessary?",
             "You can do two things at once, but you can't focus effectively on two things at once.",
@@ -128,8 +179,25 @@
             "Think big, go small, get extraordinary results."
         ];
 
-        // Initial state
-        const getInitialState = () => {
+        // ==========================================
+        // DATA LAYER
+        // ==========================================
+        const getInitialState = () => ({
+            goals: {
+                someday: { text: '', updatedAt: null },
+                fiveYear: { text: '', updatedAt: null },
+                oneYear: { text: '', updatedAt: null },
+                monthly: { text: '', updatedAt: null },
+                weekly: { text: '', updatedAt: null },
+                daily: { text: '', updatedAt: null }
+            },
+            timeBlocks: [],
+            completions: [],
+            currentQuoteIndex: 0
+        });
+
+        // LocalStorage fallback
+        const loadFromLocalStorage = () => {
             const saved = localStorage.getItem('oneThingApp');
             if (saved) {
                 try {
@@ -138,66 +206,121 @@
                     console.error('Error parsing saved data:', e);
                 }
             }
-            return {
-                goals: {
-                    someday: { text: '', updatedAt: null },
-                    fiveYear: { text: '', updatedAt: null },
-                    oneYear: { text: '', updatedAt: null },
-                    monthly: { text: '', updatedAt: null },
-                    weekly: { text: '', updatedAt: null },
-                    daily: { text: '', updatedAt: null }
-                },
-                timeBlocks: [],
-                completions: [],
-                currentQuoteIndex: 0
-            };
+            return getInitialState();
         };
 
-        // Main App Component
+        const saveToLocalStorage = (state) => {
+            localStorage.setItem('oneThingApp', JSON.stringify(state));
+        };
+
+        // ==========================================
+        // MAIN APP COMPONENT
+        // ==========================================
         function App() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
             const [state, setState] = useState(getInitialState);
             const [currentView, setCurrentView] = useState('dashboard');
+            const [syncing, setSyncing] = useState(false);
 
-            // Save to localStorage whenever state changes
+            // Auth state listener
             useEffect(() => {
-                localStorage.setItem('oneThingApp', JSON.stringify(state));
-            }, [state]);
+                if (!isFirebaseConfigured || !auth) {
+                    setLoading(false);
+                    setState(loadFromLocalStorage());
+                    return;
+                }
+
+                const unsubscribe = auth.onAuthStateChanged((user) => {
+                    setUser(user);
+                    setLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            // Firestore sync
+            useEffect(() => {
+                if (!user || !db) {
+                    // Use localStorage when offline or not authenticated
+                    if (!isFirebaseConfigured) {
+                        setState(loadFromLocalStorage());
+                    }
+                    return;
+                }
+
+                setSyncing(true);
+                const docRef = db.collection('users').doc(user.uid);
+
+                const unsubscribe = docRef.onSnapshot((doc) => {
+                    if (doc.exists) {
+                        setState(doc.data());
+                    } else {
+                        // First time user - migrate from localStorage
+                        const localData = loadFromLocalStorage();
+                        docRef.set(localData).then(() => {
+                            setState(localData);
+                        });
+                    }
+                    setSyncing(false);
+                }, (error) => {
+                    console.error("Firestore sync error:", error);
+                    setSyncing(false);
+                });
+
+                return () => unsubscribe();
+            }, [user]);
+
+            // Save to Firestore or localStorage
+            const saveState = useCallback((newState) => {
+                setState(newState);
+
+                if (user && db) {
+                    db.collection('users').doc(user.uid).set(newState);
+                } else {
+                    saveToLocalStorage(newState);
+                }
+            }, [user]);
 
             // Update goal
             const updateGoal = (level, text) => {
-                setState(prev => ({
-                    ...prev,
+                const newState = {
+                    ...state,
                     goals: {
-                        ...prev.goals,
+                        ...state.goals,
                         [level]: { text, updatedAt: new Date().toISOString() }
                     }
-                }));
+                };
+                saveState(newState);
             };
 
             // Add time block
             const addTimeBlock = (block) => {
-                setState(prev => ({
-                    ...prev,
-                    timeBlocks: [...prev.timeBlocks, { ...block, id: Date.now() }]
-                }));
+                const newState = {
+                    ...state,
+                    timeBlocks: [...state.timeBlocks, { ...block, id: Date.now() }]
+                };
+                saveState(newState);
             };
 
             // Update time block
             const updateTimeBlock = (id, updates) => {
-                setState(prev => ({
-                    ...prev,
-                    timeBlocks: prev.timeBlocks.map(block =>
+                const newState = {
+                    ...state,
+                    timeBlocks: state.timeBlocks.map(block =>
                         block.id === id ? { ...block, ...updates } : block
                     )
-                }));
+                };
+                saveState(newState);
             };
 
             // Delete time block
             const deleteTimeBlock = (id) => {
-                setState(prev => ({
-                    ...prev,
-                    timeBlocks: prev.timeBlocks.filter(block => block.id !== id)
-                }));
+                const newState = {
+                    ...state,
+                    timeBlocks: state.timeBlocks.filter(block => block.id !== id)
+                };
+                saveState(newState);
             };
 
             // Mark daily goal as complete
@@ -206,13 +329,14 @@
                 const alreadyCompleted = state.completions.some(c => c.date === today);
 
                 if (!alreadyCompleted && state.goals.daily.text) {
-                    setState(prev => ({
-                        ...prev,
-                        completions: [...prev.completions, {
+                    const newState = {
+                        ...state,
+                        completions: [...state.completions, {
                             date: today,
-                            goal: prev.goals.daily.text
+                            goal: state.goals.daily.text
                         }]
-                    }));
+                    };
+                    saveState(newState);
                 }
             };
 
@@ -234,7 +358,7 @@
                 reader.onload = (e) => {
                     try {
                         const imported = JSON.parse(e.target.result);
-                        setState(imported);
+                        saveState(imported);
                         alert('Data imported successfully!');
                     } catch (err) {
                         alert('Error importing data. Please check the file format.');
@@ -245,18 +369,120 @@
 
             // Rotate quote
             const rotateQuote = () => {
-                setState(prev => ({
-                    ...prev,
-                    currentQuoteIndex: (prev.currentQuoteIndex + 1) % QUOTES.length
-                }));
+                const newState = {
+                    ...state,
+                    currentQuoteIndex: (state.currentQuoteIndex + 1) % QUOTES.length
+                };
+                saveState(newState);
+            };
+
+            // Logout
+            const handleLogout = () => {
+                if (auth) {
+                    auth.signOut();
+                }
             };
 
             const today = new Date().toISOString().split('T')[0];
             const isTodayCompleted = state.completions.some(c => c.date === today);
 
+            if (loading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="spinner inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+                            <p className="mt-4 text-gray-600">Loading...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!user && isFirebaseConfigured && auth) {
+                return <AuthScreen />;
+            }
+
+            if (!isFirebaseConfigured) {
+                return (
+                    <div className="min-h-screen bg-gray-50">
+                        <div className="max-w-4xl mx-auto px-4 py-16">
+                            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-8 mb-8">
+                                <h2 className="text-2xl font-bold text-yellow-900 mb-4">⚠️ Firebase Not Configured</h2>
+                                <p className="text-yellow-800 mb-4">
+                                    Your app is currently using localStorage (local-only storage).
+                                    To sync across devices, you need to set up Firebase.
+                                </p>
+                                <p className="text-yellow-800 mb-4">
+                                    <strong>Don't worry!</strong> Your app still works perfectly on this device.
+                                    Use the Export/Import feature in Settings to transfer data between devices.
+                                </p>
+                                <a
+                                    href="FIREBASE_SETUP.md"
+                                    target="_blank"
+                                    className="inline-block px-6 py-3 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700"
+                                >
+                                    View Firebase Setup Instructions
+                                </a>
+                            </div>
+
+                            <Navigation currentView={currentView} setCurrentView={setCurrentView} user={null} handleLogout={null} syncing={false} />
+
+                            <main className="mt-8">
+                                {currentView === 'dashboard' && (
+                                    <Dashboard
+                                        goals={state.goals}
+                                        isTodayCompleted={isTodayCompleted}
+                                        completeDaily={completeDaily}
+                                        quote={QUOTES[state.currentQuoteIndex]}
+                                        rotateQuote={rotateQuote}
+                                    />
+                                )}
+
+                                {currentView === 'goals' && (
+                                    <GoalHierarchy
+                                        goals={state.goals}
+                                        updateGoal={updateGoal}
+                                    />
+                                )}
+
+                                {currentView === 'timeblock' && (
+                                    <TimeBlocking
+                                        goals={state.goals}
+                                        timeBlocks={state.timeBlocks}
+                                        addTimeBlock={addTimeBlock}
+                                        updateTimeBlock={updateTimeBlock}
+                                        deleteTimeBlock={deleteTimeBlock}
+                                    />
+                                )}
+
+                                {currentView === 'progress' && (
+                                    <ProgressTracker
+                                        completions={state.completions}
+                                        goals={state.goals}
+                                    />
+                                )}
+
+                                {currentView === 'settings' && (
+                                    <Settings
+                                        exportData={exportData}
+                                        importData={importData}
+                                        user={null}
+                                    />
+                                )}
+                            </main>
+                        </div>
+                    </div>
+                );
+            }
+
             return (
                 <div className="min-h-screen bg-gray-50">
-                    <Navigation currentView={currentView} setCurrentView={setCurrentView} />
+                    <Navigation
+                        currentView={currentView}
+                        setCurrentView={setCurrentView}
+                        user={user}
+                        handleLogout={handleLogout}
+                        syncing={syncing}
+                    />
 
                     <main className="max-w-7xl mx-auto px-4 py-8">
                         {currentView === 'dashboard' && (
@@ -297,6 +523,7 @@
                             <Settings
                                 exportData={exportData}
                                 importData={importData}
+                                user={user}
                             />
                         )}
                     </main>
@@ -304,8 +531,105 @@
             );
         }
 
-        // Navigation Component
-        function Navigation({ currentView, setCurrentView }) {
+        // ==========================================
+        // AUTH SCREEN
+        // ==========================================
+        function AuthScreen() {
+            const [mode, setMode] = useState('login');
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+
+                try {
+                    if (mode === 'login') {
+                        await auth.signInWithEmailAndPassword(email, password);
+                    } else {
+                        await auth.createUserWithEmailAndPassword(email, password);
+                    }
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center px-4">
+                    <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+                        <div className="text-center mb-8">
+                            <div className="text-5xl font-bold text-blue-600 mb-2">1</div>
+                            <h1 className="text-3xl font-bold text-gray-900">The ONE Thing</h1>
+                            <p className="text-gray-600 mt-2">Focus on what matters most</p>
+                        </div>
+
+                        <form onSubmit={handleAuth} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    minLength="6"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                            >
+                                {loading ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Sign Up'}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <button
+                                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                            >
+                                {mode === 'login' ? "Don't have an account? Sign Up" : 'Already have an account? Log In'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // NAVIGATION
+        // ==========================================
+        function Navigation({ currentView, setCurrentView, user, handleLogout, syncing }) {
             const navItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
                 { id: 'goals', label: 'Goals', icon: '📋' },
@@ -321,9 +645,15 @@
                             <div className="flex items-center space-x-2">
                                 <div className="text-2xl font-bold text-blue-600">1</div>
                                 <div className="text-xl font-semibold text-gray-900">The ONE Thing</div>
+                                {syncing && (
+                                    <div className="ml-2 text-sm text-gray-500 flex items-center">
+                                        <div className="spinner inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-1"></div>
+                                        Syncing...
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="flex space-x-1">
+                            <div className="flex items-center space-x-1">
                                 {navItems.map(item => (
                                     <button
                                         key={item.id}
@@ -335,9 +665,18 @@
                                         }`}
                                     >
                                         <span className="mr-1">{item.icon}</span>
-                                        {item.label}
+                                        <span className="hidden md:inline">{item.label}</span>
                                     </button>
                                 ))}
+
+                                {user && handleLogout && (
+                                    <button
+                                        onClick={handleLogout}
+                                        className="ml-4 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                                    >
+                                        Logout
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -345,11 +684,12 @@
             );
         }
 
-        // Dashboard Component
+        // ==========================================
+        // DASHBOARD
+        // ==========================================
         function Dashboard({ goals, isTodayCompleted, completeDaily, quote, rotateQuote }) {
             return (
                 <div className="space-y-8 fade-in">
-                    {/* Quote Section */}
                     <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-white">
                         <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -367,7 +707,6 @@
                         </div>
                     </div>
 
-                    {/* Today's ONE Thing */}
                     <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
                         <div className="text-center space-y-6">
                             <h2 className="text-3xl font-bold text-gray-900">Today's ONE Thing</h2>
@@ -397,28 +736,20 @@
 
                                     {isTodayCompleted && (
                                         <p className="text-green-600 font-semibold">
-                                            Completed! Great job! 🎉
+                                            Completed! Great job!
                                         </p>
                                     )}
                                 </div>
                             ) : (
                                 <div className="space-y-4 py-8">
                                     <p className="text-gray-400 text-lg">No ONE Thing set for today</p>
-                                    <button
-                                        onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-                                        className="text-blue-600 hover:text-blue-700 font-medium"
-                                    >
-                                        Set your daily goal →
-                                    </button>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* Domino Visualization */}
                     <DominoVisualization goals={goals} />
 
-                    {/* Quick Goal Overview */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <GoalCard title="This Week" goal={goals.weekly.text} color="purple" />
                         <GoalCard title="This Month" goal={goals.monthly.text} color="indigo" />
@@ -428,7 +759,6 @@
             );
         }
 
-        // Goal Card Component
         function GoalCard({ title, goal, color }) {
             const colors = {
                 purple: 'from-purple-500 to-purple-600',
@@ -448,7 +778,6 @@
             );
         }
 
-        // Domino Visualization Component
         function DominoVisualization({ goals }) {
             const levels = [
                 { key: 'daily', label: 'Today' },
@@ -491,7 +820,9 @@
             );
         }
 
-        // Goal Hierarchy Component
+        // ==========================================
+        // GOAL HIERARCHY
+        // ==========================================
         function GoalHierarchy({ goals, updateGoal }) {
             const levels = [
                 {
@@ -594,7 +925,9 @@
             );
         }
 
-        // Time Blocking Component
+        // ==========================================
+        // TIME BLOCKING
+        // ==========================================
         function TimeBlocking({ goals, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [newBlock, setNewBlock] = useState({
@@ -634,7 +967,6 @@
                         </p>
                     </div>
 
-                    {/* Info Card */}
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
                         <h3 className="font-semibold text-blue-900 mb-2">The Power of Time Blocking</h3>
                         <p className="text-blue-800 text-sm">
@@ -643,7 +975,6 @@
                         </p>
                     </div>
 
-                    {/* Date Selector */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Select Date
@@ -656,7 +987,6 @@
                         />
                     </div>
 
-                    {/* Add Time Block */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">Add Time Block</h3>
 
@@ -722,7 +1052,6 @@
                         </button>
                     </div>
 
-                    {/* Time Blocks List */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">
                             Schedule for {new Date(selectedDate).toLocaleDateString('en-US', {
@@ -778,7 +1107,9 @@
             );
         }
 
-        // Progress Tracker Component
+        // ==========================================
+        // PROGRESS TRACKER
+        // ==========================================
         function ProgressTracker({ completions, goals }) {
             const today = new Date();
             const last30Days = Array.from({ length: 30 }, (_, i) => {
@@ -795,7 +1126,6 @@
             const completedDays = last30Days.filter(date => completionMap[date]).length;
             const completionRate = Math.round((completedDays / 30) * 100);
 
-            // Calculate streak
             let currentStreak = 0;
             for (let i = 0; i < 30; i++) {
                 const date = new Date(today);
@@ -817,7 +1147,6 @@
                         </p>
                     </div>
 
-                    {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
                             <div className="text-4xl font-bold text-blue-600 mb-2">
@@ -844,7 +1173,6 @@
                         </div>
                     </div>
 
-                    {/* Calendar View */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">Last 30 Days</h3>
                         <div className="grid grid-cols-10 gap-2">
@@ -872,7 +1200,6 @@
                         </div>
                     </div>
 
-                    {/* Recent Completions */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Completions</h3>
                         {completions.length === 0 ? (
@@ -911,8 +1238,10 @@
             );
         }
 
-        // Settings Component
-        function Settings({ exportData, importData }) {
+        // ==========================================
+        // SETTINGS
+        // ==========================================
+        function Settings({ exportData, importData, user }) {
             const handleImport = (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -930,7 +1259,18 @@
                         </p>
                     </div>
 
-                    {/* Export Data */}
+                    {user && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                            <h3 className="font-semibold text-green-900 mb-2">✓ Cloud Sync Enabled</h3>
+                            <p className="text-green-800 text-sm mb-2">
+                                Your data is automatically syncing across all your devices in real-time.
+                            </p>
+                            <p className="text-green-700 text-xs">
+                                Logged in as: {user.email}
+                            </p>
+                        </div>
+                    )}
+
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-2">Export Data</h3>
                         <p className="text-gray-600 mb-4">
@@ -944,7 +1284,6 @@
                         </button>
                     </div>
 
-                    {/* Import Data */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-2">Import Data</h3>
                         <p className="text-gray-600 mb-4">
@@ -964,7 +1303,6 @@
                         />
                     </div>
 
-                    {/* About */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-2">About</h3>
                         <p className="text-gray-600 mb-4">
@@ -973,7 +1311,10 @@
                             will make everything else easier or unnecessary.
                         </p>
                         <p className="text-sm text-gray-500">
-                            All data is stored locally in your browser. No information is sent to any server.
+                            {user ?
+                                'Your data is securely stored in the cloud and synced across all your devices.' :
+                                'All data is stored locally in your browser. No information is sent to any server.'
+                            }
                         </p>
                     </div>
                 </div>
