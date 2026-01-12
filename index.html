@@ -204,7 +204,7 @@
         });
 
         const getInitialState = () => ({
-            version: 2, // Track data version for migrations
+            version: 3, // Track data version for migrations
             lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
                 acc[key] = {
                     active: false,
@@ -214,15 +214,28 @@
                 return acc;
             }, {}),
             timeBlocks: [],
-            currentQuoteIndex: 0
+            currentQuoteIndex: 0,
+            // 4-1-1 System tracking
+            lastWeeklyReview: null,  // ISO date of last weekly review
+            lastAnnualReview: null   // ISO date of last annual review
         });
 
         // Migrate old data format to new multi-track format
         const migrateData = (oldData) => {
-            // If already version 2, no migration needed
-            if (oldData.version === 2) return oldData;
+            // If already version 3, no migration needed
+            if (oldData.version === 3) return oldData;
 
-            // Migrate from version 1 (single track) to version 2 (multi-track)
+            // If version 2, just add 4-1-1 fields
+            if (oldData.version === 2) {
+                return {
+                    ...oldData,
+                    version: 3,
+                    lastWeeklyReview: null,
+                    lastAnnualReview: null
+                };
+            }
+
+            // Migrate from version 1 (single track) to version 3 (multi-track + 4-1-1)
             const newState = getInitialState();
 
             // If old data has goals, migrate them to "business" area (most common use case)
@@ -315,7 +328,7 @@
                         const data = migrateData(doc.data());
                         setState(data);
                         // If migration happened, save migrated data back
-                        if (data.version === 2 && doc.data().version !== 2) {
+                        if (data.version === 3 && doc.data().version !== 3) {
                             docRef.set(data);
                         }
                     } else {
@@ -429,6 +442,26 @@
                     };
                     saveState(newState);
                 }
+            };
+
+            // Mark weekly review as complete (4-1-1 system)
+            const markWeeklyReview = () => {
+                const today = new Date().toISOString().split('T')[0];
+                const newState = {
+                    ...state,
+                    lastWeeklyReview: today
+                };
+                saveState(newState);
+            };
+
+            // Mark annual review as complete (4-1-1 system)
+            const markAnnualReview = () => {
+                const today = new Date().toISOString().split('T')[0];
+                const newState = {
+                    ...state,
+                    lastAnnualReview: today
+                };
+                saveState(newState);
             };
 
             // Export data
@@ -550,6 +583,10 @@
                                         addTimeBlock={addTimeBlock}
                                         updateTimeBlock={updateTimeBlock}
                                         deleteTimeBlock={deleteTimeBlock}
+                                        lastWeeklyReview={state.lastWeeklyReview}
+                                        lastAnnualReview={state.lastAnnualReview}
+                                        markWeeklyReview={markWeeklyReview}
+                                        markAnnualReview={markAnnualReview}
                                     />
                                 )}
 
@@ -614,6 +651,10 @@
                                 addTimeBlock={addTimeBlock}
                                 updateTimeBlock={updateTimeBlock}
                                 deleteTimeBlock={deleteTimeBlock}
+                                lastWeeklyReview={state.lastWeeklyReview}
+                                lastAnnualReview={state.lastAnnualReview}
+                                markWeeklyReview={markWeeklyReview}
+                                markAnnualReview={markAnnualReview}
                             />
                         )}
 
@@ -1205,7 +1246,7 @@
         // ==========================================
         // TIME BLOCKING
         // ==========================================
-        function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
+        function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, lastWeeklyReview, lastAnnualReview, markWeeklyReview, markAnnualReview }) {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [newBlock, setNewBlock] = useState({
                 startTime: '09:00',
@@ -1236,6 +1277,18 @@
 
             const todayBlocks = timeBlocks.filter(block => block.date === selectedDate);
 
+            // Calculate days since last reviews
+            const today = new Date().toISOString().split('T')[0];
+            const daysSinceWeeklyReview = lastWeeklyReview
+                ? Math.floor((new Date(today) - new Date(lastWeeklyReview)) / (1000 * 60 * 60 * 24))
+                : null;
+            const daysSinceAnnualReview = lastAnnualReview
+                ? Math.floor((new Date(today) - new Date(lastAnnualReview)) / (1000 * 60 * 60 * 24))
+                : null;
+
+            const weeklyReviewDue = !lastWeeklyReview || daysSinceWeeklyReview >= 7;
+            const annualReviewDue = !lastAnnualReview || daysSinceAnnualReview >= 365;
+
             return (
                 <div className="space-y-6 fade-in">
                     <div className="text-center mb-8">
@@ -1246,11 +1299,61 @@
                     </div>
 
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                        <h3 className="font-semibold text-blue-900 mb-2">The Power of Time Blocking</h3>
-                        <p className="text-blue-800 text-sm">
-                            Protect time for your ONE Thing by blocking off 4-hour chunks. This ensures
-                            you have the uninterrupted focus needed for extraordinary results.
+                        <h3 className="font-semibold text-blue-900 mb-2">The 4-1-1 System</h3>
+                        <p className="text-blue-800 text-sm mb-4">
+                            Block <strong>4 hours every day</strong> for your ONE Thing, <strong>1 hour each week</strong> to review goals,
+                            and <strong>1 hour annually</strong> to review your long-term vision.
                         </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {/* Weekly Review */}
+                            <div className={`p-4 rounded-lg ${weeklyReviewDue ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-white border border-blue-200'}`}>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <div className="font-semibold text-gray-900 mb-1">📅 Weekly Review</div>
+                                        <div className="text-sm text-gray-600">
+                                            {!lastWeeklyReview && "Never done - schedule your first one!"}
+                                            {lastWeeklyReview && !weeklyReviewDue && `Done ${daysSinceWeeklyReview} day${daysSinceWeeklyReview !== 1 ? 's' : ''} ago`}
+                                            {lastWeeklyReview && weeklyReviewDue && `Due! (${daysSinceWeeklyReview} days since last)`}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={markWeeklyReview}
+                                        className={`px-4 py-2 rounded-lg font-medium text-sm ${
+                                            weeklyReviewDue
+                                                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                        }`}
+                                    >
+                                        Mark Done
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Annual Review */}
+                            <div className={`p-4 rounded-lg ${annualReviewDue ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-white border border-blue-200'}`}>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <div className="font-semibold text-gray-900 mb-1">🎯 Annual Review</div>
+                                        <div className="text-sm text-gray-600">
+                                            {!lastAnnualReview && "Never done - time to plan!"}
+                                            {lastAnnualReview && !annualReviewDue && `Done ${daysSinceAnnualReview} day${daysSinceAnnualReview !== 1 ? 's' : ''} ago`}
+                                            {lastAnnualReview && annualReviewDue && `Due! (${daysSinceAnnualReview} days since last)`}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={markAnnualReview}
+                                        className={`px-4 py-2 rounded-lg font-medium text-sm ${
+                                            annualReviewDue
+                                                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                        }`}
+                                    >
+                                        Mark Done
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
