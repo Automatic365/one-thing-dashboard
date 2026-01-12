@@ -60,15 +60,12 @@ Set up your complete goal hierarchy:
 
 Each level includes the Focusing Question to guide your thinking.
 
-### 3. Time Blocking (with 4-1-1 System)
-- **The 4-1-1 Time Blocking System**:
-  - **4 hours daily**: Block 4 hours every day for your ONE Thing (default duration)
-  - **1 hour weekly**: Review your annual and monthly goals, plan your week
-  - **1 hour annually**: Review your someday and 5-year goals, set annual goals
+### 3. Time Blocking
 - Schedule dedicated time blocks for your ONE Thing
-- Visual reminders when weekly/annual reviews are due
-- Mark blocks and reviews as complete when done
-- Quick-add today's ONE Thing as a time block
+- Recommended 4-hour blocks for maximum focus and deep work
+- Visual calendar to see your commitments
+- Mark blocks as complete when done
+- Quick-add today's ONE Thing as a time block from any active life area
 
 ### 4. Progress Tracking
 - Track your daily completion streak
@@ -108,31 +105,45 @@ Fill in each level, asking yourself:
 - Each week, update your weekly ONE Thing aligned with your monthly goal
 - Keep the domino effect going!
 
-## The 4-1-1 Time Blocking System
+## The 4-1-1 Goal Setting System
 
-The app implements the complete 4-1-1 system from The ONE Thing book:
+The app implements the 4-1-1 execution rhythm from The ONE Thing book:
 
-### 4 Hours Daily
-- Block 4 hours every day for your most important work
-- The time block duration defaults to 4 hours (you can adjust if needed)
-- Protect this time - no meetings, no interruptions
-- This is your path to mastery and extraordinary results
+### The 4-1-1 Framework
 
-### 1 Hour Weekly (Every 7 Days)
-- Review your annual and monthly goals
-- Ask: "What's the ONE Thing I need to do this week to stay on track?"
-- Update your weekly goals for each active life area
-- The app will remind you when it's been 7+ days since your last review
-- Click "Mark Done" in the Time Blocking tab after completing your review
+**4 = Four Weekly Goals**
+- List the 4 most important outcomes you want to accomplish this week
+- These should directly support your monthly and yearly goals
+- Forces you to identify what truly matters
 
-### 1 Hour Annually (Every 365 Days)
-- Review your someday and 5-year goals
-- Assess your progress and adjust as needed
-- Set or update your annual goals
-- The app will remind you when it's been a year since your last review
-- Click "Mark Done" in the Time Blocking tab after completing your review
+**1 = One Weekly ONE Thing**
+- Select THE single most important goal from your 4 weekly goals
+- This is your weekly priority - the one that makes everything else easier or unnecessary
+- Click the radio button next to it in the Goals tab
 
-**Why This Works**: The 4-1-1 system ensures you're always connected to your big picture while taking daily action. You're never just busy - you're productive on what matters most.
+**1 = One Daily Goal**
+- Each day, ask: "What's the ONE Thing I can do today that makes my weekly ONE Thing easier or unnecessary?"
+- This creates direct alignment: Daily → Weekly ONE → Monthly → Yearly → 5-Year → Someday
+
+### Why 4-1-1 Works
+
+**Prevents Priority Dilution**: You can't have 10 priorities - you identify the 4 that matter most
+
+**Creates Forced Trade-Offs**: Selecting THE ONE from 4 options forces real prioritization
+
+**Aligns Daily Effort with Results**: Your daily action directly supports your most important weekly goal
+
+**Repeatable Habit**: Weekly goal-setting becomes a simple, consistent routine
+
+### How to Use 4-1-1 in the App
+
+1. **Go to Goals Tab** → Select a life area
+2. **Set Your 4 Weekly Goals** (Step 5 in the hierarchy)
+3. **Select THE ONE** by clicking the radio button next to your most important weekly goal
+4. **Set Today's Daily Goal** that makes your weekly ONE Thing easier or unnecessary
+5. **Track on Dashboard** - see both your weekly ONE Thing and daily goal displayed together
+
+The system is designed for weekly use - update your 4 goals each week, pick THE ONE, and execute daily.
 
 ## Tips for Success
 
