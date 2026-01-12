@@ -1,0 +1,58 @@
+╔══════════════════════════════════════════════════════════════╗
+║                     THE ONE THING APP                        ║
+║                    QUICK START GUIDE                         ║
+╚══════════════════════════════════════════════════════════════╝
+
+HOW TO RUN THE APP
+══════════════════════════════════════════════════════════════
+
+Method 1 (EASIEST):
+-------------------
+1. Find the file named "index.html" in this folder
+2. Double-click it
+3. It opens in your web browser
+4. Done! Start using the app
+
+Method 2 (If double-click doesn't work):
+-----------------------------------------
+1. Open Terminal (Mac) or Command Prompt (Windows)
+2. Type: cd /Users/jhanna/Repo/one-thing-dashboard
+3. Type: python3 -m http.server 8000
+4. Open browser and go to: http://localhost:8000
+
+
+GETTING STARTED IN THE APP
+══════════════════════════════════════════════════════════════
+
+Step 1: Set Your Goals
+----------------------
+Click "Goals" tab → Fill in your goals from Someday down to Daily
+
+Step 2: Set Today's ONE Thing
+-----------------------------
+Your daily goal appears on the Dashboard automatically
+
+Step 3: Block Your Time
+-----------------------
+Click "Time Blocking" → Schedule a 4-hour block for your ONE Thing
+
+Step 4: Complete & Track
+-------------------------
+Mark your ONE Thing complete → See progress in "Progress" tab
+
+
+YOUR DATA IS SAFE
+══════════════════════════════════════════════════════════════
+✓ Stored locally on your computer
+✓ Never sent to any server
+✓ Export backups from Settings tab
+✓ Completely private
+
+
+NEED HELP?
+══════════════════════════════════════════════════════════════
+→ Read the full README.md file for detailed instructions
+→ All features have helpful descriptions in the app
+
+
+Start focusing on what matters most! 🎯

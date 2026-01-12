@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The ONE Thing - Focus on What Matters Most</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .domino-chain {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .domino {
+            width: 60px;
+            height: 100px;
+            background: white;
+            border: 3px solid #e5e7eb;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .domino.completed {
+            background: #10b981;
+            border-color: #059669;
+            transform: rotate(-15deg);
+        }
+
+        .domino.active {
+            background: #3b82f6;
+            border-color: #2563eb;
+            transform: scale(1.1);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .domino-dot {
+            width: 8px;
+            height: 8px;
+            background: #4b5563;
+            border-radius: 50%;
+        }
+
+        .domino.completed .domino-dot,
+        .domino.active .domino-dot {
+            background: white;
+        }
+
+        .arrow {
+            font-size: 24px;
+            color: #9ca3af;
+        }
+
+        .time-block {
+            min-height: 60px;
+            border: 2px dashed #e5e7eb;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .time-block:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .time-block.filled {
+            border-style: solid;
+            border-color: #3b82f6;
+            background: #dbeafe;
+        }
+
+        .goal-card {
+            transition: all 0.2s ease;
+        }
+
+        .goal-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        // Motivational quotes from The ONE Thing
+        const QUOTES = [
+            "What's the ONE Thing I can do such that by doing it everything else will be easier or unnecessary?",
+            "You can do two things at once, but you can't focus effectively on two things at once.",
+            "Success is built sequentially. It's one thing at a time.",
+            "Extraordinary results come from focusing on your ONE Thing.",
+            "When you strive for greatness, chaos is guaranteed to show up.",
+            "Multitasking is merely the opportunity to screw up more than one thing at a time.",
+            "The key is over time. Success is built sequentially. It's one thing at a time.",
+            "Achievers always work from a clear sense of priority.",
+            "Until my ONE Thing is done—everything else is a distraction.",
+            "What matters most is always a priority.",
+            "Purpose without priority is powerless.",
+            "When you know what matters most, everything makes sense.",
+            "Most people struggle with life balance simply because they haven't paid the price to decide what is really important to them.",
+            "You need to be doing fewer things for more effect instead of doing more things with side effects.",
+            "Think big, go small, get extraordinary results."
+        ];
+
+        // Initial state
+        const getInitialState = () => {
+            const saved = localStorage.getItem('oneThingApp');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.error('Error parsing saved data:', e);
+                }
+            }
+            return {
+                goals: {
+                    someday: { text: '', updatedAt: null },
+                    fiveYear: { text: '', updatedAt: null },
+                    oneYear: { text: '', updatedAt: null },
+                    monthly: { text: '', updatedAt: null },
+                    weekly: { text: '', updatedAt: null },
+                    daily: { text: '', updatedAt: null }
+                },
+                timeBlocks: [],
+                completions: [],
+                currentQuoteIndex: 0
+            };
+        };
+
+        // Main App Component
+        function App() {
+            const [state, setState] = useState(getInitialState);
+            const [currentView, setCurrentView] = useState('dashboard');
+
+            // Save to localStorage whenever state changes
+            useEffect(() => {
+                localStorage.setItem('oneThingApp', JSON.stringify(state));
+            }, [state]);
+
+            // Update goal
+            const updateGoal = (level, text) => {
+                setState(prev => ({
+                    ...prev,
+                    goals: {
+                        ...prev.goals,
+                        [level]: { text, updatedAt: new Date().toISOString() }
+                    }
+                }));
+            };
+
+            // Add time block
+            const addTimeBlock = (block) => {
+                setState(prev => ({
+                    ...prev,
+                    timeBlocks: [...prev.timeBlocks, { ...block, id: Date.now() }]
+                }));
+            };
+
+            // Update time block
+            const updateTimeBlock = (id, updates) => {
+                setState(prev => ({
+                    ...prev,
+                    timeBlocks: prev.timeBlocks.map(block =>
+                        block.id === id ? { ...block, ...updates } : block
+                    )
+                }));
+            };
+
+            // Delete time block
+            const deleteTimeBlock = (id) => {
+                setState(prev => ({
+                    ...prev,
+                    timeBlocks: prev.timeBlocks.filter(block => block.id !== id)
+                }));
+            };
+
+            // Mark daily goal as complete
+            const completeDaily = () => {
+                const today = new Date().toISOString().split('T')[0];
+                const alreadyCompleted = state.completions.some(c => c.date === today);
+
+                if (!alreadyCompleted && state.goals.daily.text) {
+                    setState(prev => ({
+                        ...prev,
+                        completions: [...prev.completions, {
+                            date: today,
+                            goal: prev.goals.daily.text
+                        }]
+                    }));
+                }
+            };
+
+            // Export data
+            const exportData = () => {
+                const dataStr = JSON.stringify(state, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `one-thing-backup-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+            };
+
+            // Import data
+            const importData = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        setState(imported);
+                        alert('Data imported successfully!');
+                    } catch (err) {
+                        alert('Error importing data. Please check the file format.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            // Rotate quote
+            const rotateQuote = () => {
+                setState(prev => ({
+                    ...prev,
+                    currentQuoteIndex: (prev.currentQuoteIndex + 1) % QUOTES.length
+                }));
+            };
+
+            const today = new Date().toISOString().split('T')[0];
+            const isTodayCompleted = state.completions.some(c => c.date === today);
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <Navigation currentView={currentView} setCurrentView={setCurrentView} />
+
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        {currentView === 'dashboard' && (
+                            <Dashboard
+                                goals={state.goals}
+                                isTodayCompleted={isTodayCompleted}
+                                completeDaily={completeDaily}
+                                quote={QUOTES[state.currentQuoteIndex]}
+                                rotateQuote={rotateQuote}
+                            />
+                        )}
+
+                        {currentView === 'goals' && (
+                            <GoalHierarchy
+                                goals={state.goals}
+                                updateGoal={updateGoal}
+                            />
+                        )}
+
+                        {currentView === 'timeblock' && (
+                            <TimeBlocking
+                                goals={state.goals}
+                                timeBlocks={state.timeBlocks}
+                                addTimeBlock={addTimeBlock}
+                                updateTimeBlock={updateTimeBlock}
+                                deleteTimeBlock={deleteTimeBlock}
+                            />
+                        )}
+
+                        {currentView === 'progress' && (
+                            <ProgressTracker
+                                completions={state.completions}
+                                goals={state.goals}
+                            />
+                        )}
+
+                        {currentView === 'settings' && (
+                            <Settings
+                                exportData={exportData}
+                                importData={importData}
+                            />
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        // Navigation Component
+        function Navigation({ currentView, setCurrentView }) {
+            const navItems = [
+                { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
+                { id: 'goals', label: 'Goals', icon: '📋' },
+                { id: 'timeblock', label: 'Time Blocking', icon: '⏰' },
+                { id: 'progress', label: 'Progress', icon: '📊' },
+                { id: 'settings', label: 'Settings', icon: '⚙️' }
+            ];
+
+            return (
+                <nav className="bg-white border-b border-gray-200">
+                    <div className="max-w-7xl mx-auto px-4">
+                        <div className="flex items-center justify-between h-16">
+                            <div className="flex items-center space-x-2">
+                                <div className="text-2xl font-bold text-blue-600">1</div>
+                                <div className="text-xl font-semibold text-gray-900">The ONE Thing</div>
+                            </div>
+
+                            <div className="flex space-x-1">
+                                {navItems.map(item => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setCurrentView(item.id)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                            currentView === item.id
+                                                ? 'bg-blue-50 text-blue-600'
+                                                : 'text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <span className="mr-1">{item.icon}</span>
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            );
+        }
+
+        // Dashboard Component
+        function Dashboard({ goals, isTodayCompleted, completeDaily, quote, rotateQuote }) {
+            return (
+                <div className="space-y-8 fade-in">
+                    {/* Quote Section */}
+                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-white">
+                        <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                                <p className="text-2xl font-light leading-relaxed italic">
+                                    "{quote}"
+                                </p>
+                            </div>
+                            <button
+                                onClick={rotateQuote}
+                                className="ml-4 text-white/80 hover:text-white text-sm"
+                                title="Next quote"
+                            >
+                                ↻
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Today's ONE Thing */}
+                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+                        <div className="text-center space-y-6">
+                            <h2 className="text-3xl font-bold text-gray-900">Today's ONE Thing</h2>
+
+                            {goals.daily.text ? (
+                                <div className="space-y-6">
+                                    <div className={`text-5xl font-bold ${
+                                        isTodayCompleted ? 'text-green-600' : 'text-blue-600'
+                                    }`}>
+                                        {isTodayCompleted ? '✓' : '1'}
+                                    </div>
+
+                                    <p className={`text-2xl font-medium ${
+                                        isTodayCompleted ? 'text-gray-400 line-through' : 'text-gray-900'
+                                    }`}>
+                                        {goals.daily.text}
+                                    </p>
+
+                                    {!isTodayCompleted && (
+                                        <button
+                                            onClick={completeDaily}
+                                            className="px-8 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                                        >
+                                            Mark as Complete
+                                        </button>
+                                    )}
+
+                                    {isTodayCompleted && (
+                                        <p className="text-green-600 font-semibold">
+                                            Completed! Great job! 🎉
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-4 py-8">
+                                    <p className="text-gray-400 text-lg">No ONE Thing set for today</p>
+                                    <button
+                                        onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                                        className="text-blue-600 hover:text-blue-700 font-medium"
+                                    >
+                                        Set your daily goal →
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Domino Visualization */}
+                    <DominoVisualization goals={goals} />
+
+                    {/* Quick Goal Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <GoalCard title="This Week" goal={goals.weekly.text} color="purple" />
+                        <GoalCard title="This Month" goal={goals.monthly.text} color="indigo" />
+                        <GoalCard title="This Year" goal={goals.oneYear.text} color="blue" />
+                    </div>
+                </div>
+            );
+        }
+
+        // Goal Card Component
+        function GoalCard({ title, goal, color }) {
+            const colors = {
+                purple: 'from-purple-500 to-purple-600',
+                indigo: 'from-indigo-500 to-indigo-600',
+                blue: 'from-blue-500 to-blue-600'
+            };
+
+            return (
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 goal-card">
+                    <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${colors[color]} text-white text-sm font-semibold mb-3`}>
+                        {title}
+                    </div>
+                    <p className={`${goal ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                        {goal || 'Not set yet'}
+                    </p>
+                </div>
+            );
+        }
+
+        // Domino Visualization Component
+        function DominoVisualization({ goals }) {
+            const levels = [
+                { key: 'daily', label: 'Today' },
+                { key: 'weekly', label: 'Week' },
+                { key: 'monthly', label: 'Month' },
+                { key: 'oneYear', label: 'Year' },
+                { key: 'fiveYear', label: '5 Yr' },
+                { key: 'someday', label: 'Dream' }
+            ];
+
+            return (
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+                        The Domino Effect
+                    </h3>
+                    <p className="text-gray-600 text-center mb-8">
+                        Each goal you complete topples the next, leading you toward extraordinary results
+                    </p>
+
+                    <div className="domino-chain flex-wrap">
+                        {levels.map((level, index) => {
+                            const hasGoal = !!goals[level.key].text;
+                            const isActive = level.key === 'daily' && hasGoal;
+
+                            return (
+                                <React.Fragment key={level.key}>
+                                    <div className={`domino ${isActive ? 'active' : hasGoal ? '' : ''}`}>
+                                        <div className="domino-dot"></div>
+                                        <div className="text-xs font-semibold text-center flex-1 flex items-center justify-center">
+                                            {level.label}
+                                        </div>
+                                        <div className="domino-dot"></div>
+                                    </div>
+                                    {index < levels.length - 1 && <div className="arrow">→</div>}
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // Goal Hierarchy Component
+        function GoalHierarchy({ goals, updateGoal }) {
+            const levels = [
+                {
+                    key: 'someday',
+                    label: 'Someday Goal',
+                    question: 'What\'s the ONE Thing I want to do someday?',
+                    description: 'Your ultimate vision - the big dream that inspires everything else',
+                    color: 'purple'
+                },
+                {
+                    key: 'fiveYear',
+                    label: '5-Year Goal',
+                    question: 'What\'s the ONE Thing I can do in the next five years?',
+                    description: 'Based on your Someday goal, what would make the biggest impact?',
+                    color: 'indigo'
+                },
+                {
+                    key: 'oneYear',
+                    label: '1-Year Goal',
+                    question: 'What\'s the ONE Thing I can do this year?',
+                    description: 'The annual milestone that moves you toward your 5-year goal',
+                    color: 'blue'
+                },
+                {
+                    key: 'monthly',
+                    label: 'Monthly Goal',
+                    question: 'What\'s the ONE Thing I can do this month?',
+                    description: 'This month\'s priority that advances your yearly goal',
+                    color: 'cyan'
+                },
+                {
+                    key: 'weekly',
+                    label: 'Weekly Goal',
+                    question: 'What\'s the ONE Thing I can do this week?',
+                    description: 'This week\'s focus that contributes to your monthly goal',
+                    color: 'teal'
+                },
+                {
+                    key: 'daily',
+                    label: 'Daily Goal',
+                    question: 'What\'s the ONE Thing I can do today?',
+                    description: 'The single most important thing you can do right now',
+                    color: 'green'
+                }
+            ];
+
+            const colorClasses = {
+                purple: 'border-purple-200 bg-purple-50',
+                indigo: 'border-indigo-200 bg-indigo-50',
+                blue: 'border-blue-200 bg-blue-50',
+                cyan: 'border-cyan-200 bg-cyan-50',
+                teal: 'border-teal-200 bg-teal-50',
+                green: 'border-green-200 bg-green-50'
+            };
+
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Goal Setting to the Now</h2>
+                        <p className="text-gray-600">
+                            Work backwards from your biggest goal to what you can do today
+                        </p>
+                    </div>
+
+                    {levels.map((level, index) => (
+                        <div
+                            key={level.key}
+                            className={`bg-white rounded-xl p-6 shadow-sm border-2 ${colorClasses[level.color]} transition-all hover:shadow-md`}
+                        >
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                        {index + 1}. {level.label}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 italic mb-2">
+                                        "{level.question}"
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        {level.description}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <textarea
+                                value={goals[level.key].text}
+                                onChange={(e) => updateGoal(level.key, e.target.value)}
+                                placeholder={`Enter your ${level.label.toLowerCase()}...`}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                rows="3"
+                            />
+
+                            {goals[level.key].updatedAt && (
+                                <p className="text-xs text-gray-400 mt-2">
+                                    Last updated: {new Date(goals[level.key].updatedAt).toLocaleDateString()}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        // Time Blocking Component
+        function TimeBlocking({ goals, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
+            const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+            const [newBlock, setNewBlock] = useState({
+                startTime: '09:00',
+                duration: 4,
+                task: ''
+            });
+
+            const handleAddBlock = () => {
+                if (!newBlock.task) {
+                    alert('Please enter a task for this time block');
+                    return;
+                }
+
+                const start = new Date(`${selectedDate}T${newBlock.startTime}`);
+                const end = new Date(start.getTime() + newBlock.duration * 60 * 60 * 1000);
+
+                addTimeBlock({
+                    date: selectedDate,
+                    startTime: newBlock.startTime,
+                    endTime: end.toTimeString().slice(0, 5),
+                    task: newBlock.task,
+                    completed: false
+                });
+
+                setNewBlock({ startTime: '09:00', duration: 4, task: '' });
+            };
+
+            const todayBlocks = timeBlocks.filter(block => block.date === selectedDate);
+
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Time Blocking</h2>
+                        <p className="text-gray-600">
+                            Dedicate uninterrupted time blocks to your ONE Thing
+                        </p>
+                    </div>
+
+                    {/* Info Card */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                        <h3 className="font-semibold text-blue-900 mb-2">The Power of Time Blocking</h3>
+                        <p className="text-blue-800 text-sm">
+                            Protect time for your ONE Thing by blocking off 4-hour chunks. This ensures
+                            you have the uninterrupted focus needed for extraordinary results.
+                        </p>
+                    </div>
+
+                    {/* Date Selector */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Select Date
+                        </label>
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+
+                    {/* Add Time Block */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">Add Time Block</h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Start Time
+                                </label>
+                                <input
+                                    type="time"
+                                    value={newBlock.startTime}
+                                    onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Duration (hours)
+                                </label>
+                                <select
+                                    value={newBlock.duration}
+                                    onChange={(e) => setNewBlock({ ...newBlock, duration: Number(e.target.value) })}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                    <option value="1">1 hour</option>
+                                    <option value="2">2 hours</option>
+                                    <option value="3">3 hours</option>
+                                    <option value="4">4 hours (Recommended)</option>
+                                    <option value="5">5 hours</option>
+                                    <option value="6">6 hours</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Task
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newBlock.task}
+                                    onChange={(e) => setNewBlock({ ...newBlock, task: e.target.value })}
+                                    placeholder="Your ONE Thing"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
+                        </div>
+
+                        {goals.daily.text && (
+                            <button
+                                onClick={() => setNewBlock({ ...newBlock, task: goals.daily.text })}
+                                className="text-sm text-blue-600 hover:text-blue-700 mb-4"
+                            >
+                                Use today's ONE Thing: "{goals.daily.text}"
+                            </button>
+                        )}
+
+                        <button
+                            onClick={handleAddBlock}
+                            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                        >
+                            Add Time Block
+                        </button>
+                    </div>
+
+                    {/* Time Blocks List */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">
+                            Schedule for {new Date(selectedDate).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                month: 'long',
+                                day: 'numeric'
+                            })}
+                        </h3>
+
+                        {todayBlocks.length === 0 ? (
+                            <p className="text-gray-400 text-center py-8">
+                                No time blocks scheduled for this day
+                            </p>
+                        ) : (
+                            <div className="space-y-3">
+                                {todayBlocks.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(block => (
+                                    <div
+                                        key={block.id}
+                                        className={`time-block p-4 ${block.completed ? 'filled' : ''}`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1">
+                                                <div className="flex items-center space-x-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={block.completed}
+                                                        onChange={(e) => updateTimeBlock(block.id, { completed: e.target.checked })}
+                                                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <div>
+                                                        <p className={`font-semibold ${block.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                                                            {block.task}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            {block.startTime} - {block.endTime}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => deleteTimeBlock(block.id)}
+                                                className="text-red-600 hover:text-red-700 px-3 py-1 text-sm"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Progress Tracker Component
+        function ProgressTracker({ completions, goals }) {
+            const today = new Date();
+            const last30Days = Array.from({ length: 30 }, (_, i) => {
+                const date = new Date(today);
+                date.setDate(date.getDate() - (29 - i));
+                return date.toISOString().split('T')[0];
+            });
+
+            const completionMap = completions.reduce((acc, comp) => {
+                acc[comp.date] = true;
+                return acc;
+            }, {});
+
+            const completedDays = last30Days.filter(date => completionMap[date]).length;
+            const completionRate = Math.round((completedDays / 30) * 100);
+
+            // Calculate streak
+            let currentStreak = 0;
+            for (let i = 0; i < 30; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+                if (completionMap[dateStr]) {
+                    currentStreak++;
+                } else {
+                    break;
+                }
+            }
+
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Progress & Statistics</h2>
+                        <p className="text-gray-600">
+                            Track your consistency and celebrate your wins
+                        </p>
+                    </div>
+
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
+                            <div className="text-4xl font-bold text-blue-600 mb-2">
+                                {currentStreak}
+                            </div>
+                            <div className="text-gray-600 font-medium">Day Streak</div>
+                            <div className="text-sm text-gray-400 mt-1">Current consecutive days</div>
+                        </div>
+
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
+                            <div className="text-4xl font-bold text-green-600 mb-2">
+                                {completedDays}
+                            </div>
+                            <div className="text-gray-600 font-medium">Completed Days</div>
+                            <div className="text-sm text-gray-400 mt-1">Last 30 days</div>
+                        </div>
+
+                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
+                            <div className="text-4xl font-bold text-purple-600 mb-2">
+                                {completionRate}%
+                            </div>
+                            <div className="text-gray-600 font-medium">Completion Rate</div>
+                            <div className="text-sm text-gray-400 mt-1">Last 30 days</div>
+                        </div>
+                    </div>
+
+                    {/* Calendar View */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">Last 30 Days</h3>
+                        <div className="grid grid-cols-10 gap-2">
+                            {last30Days.map(date => {
+                                const isCompleted = completionMap[date];
+                                const dateObj = new Date(date);
+                                const isToday = date === today.toISOString().split('T')[0];
+
+                                return (
+                                    <div
+                                        key={date}
+                                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${
+                                            isCompleted
+                                                ? 'bg-green-500 text-white'
+                                                : isToday
+                                                ? 'bg-blue-100 border-2 border-blue-500'
+                                                : 'bg-gray-100'
+                                        }`}
+                                        title={dateObj.toLocaleDateString()}
+                                    >
+                                        <div className="font-semibold">{dateObj.getDate()}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Recent Completions */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Completions</h3>
+                        {completions.length === 0 ? (
+                            <p className="text-gray-400 text-center py-8">
+                                No completions yet. Start by setting and completing your daily ONE Thing!
+                            </p>
+                        ) : (
+                            <div className="space-y-3">
+                                {completions
+                                    .slice()
+                                    .reverse()
+                                    .slice(0, 10)
+                                    .map((completion, index) => (
+                                        <div
+                                            key={index}
+                                            className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
+                                        >
+                                            <div className="text-green-500 text-xl">✓</div>
+                                            <div className="flex-1">
+                                                <p className="font-medium text-gray-900">{completion.goal}</p>
+                                                <p className="text-sm text-gray-500">
+                                                    {new Date(completion.date).toLocaleDateString('en-US', {
+                                                        weekday: 'long',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Settings Component
+        function Settings({ exportData, importData }) {
+            const handleImport = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    importData(file);
+                    e.target.value = '';
+                }
+            };
+
+            return (
+                <div className="space-y-6 fade-in">
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Settings</h2>
+                        <p className="text-gray-600">
+                            Manage your data and preferences
+                        </p>
+                    </div>
+
+                    {/* Export Data */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Export Data</h3>
+                        <p className="text-gray-600 mb-4">
+                            Download a backup of all your goals, time blocks, and progress data.
+                        </p>
+                        <button
+                            onClick={exportData}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                        >
+                            Download Backup
+                        </button>
+                    </div>
+
+                    {/* Import Data */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Import Data</h3>
+                        <p className="text-gray-600 mb-4">
+                            Restore your data from a previously exported backup file.
+                        </p>
+                        <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleImport}
+                            className="block w-full text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-lg file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-blue-50 file:text-blue-700
+                                hover:file:bg-blue-100
+                                cursor-pointer"
+                        />
+                    </div>
+
+                    {/* About */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">About</h3>
+                        <p className="text-gray-600 mb-4">
+                            This app is based on "The ONE Thing" by Gary Keller and Jay Papasan.
+                            It helps you identify and focus on the single most important task that
+                            will make everything else easier or unnecessary.
+                        </p>
+                        <p className="text-sm text-gray-500">
+                            All data is stored locally in your browser. No information is sent to any server.
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
