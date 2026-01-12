@@ -182,26 +182,83 @@
         // ==========================================
         // DATA LAYER
         // ==========================================
+
+        // Life areas based on The ONE Thing book
+        const LIFE_AREAS = {
+            spiritual: { name: 'Spiritual Life', icon: '🙏', color: 'purple', order: 1 },
+            health: { name: 'Physical Health', icon: '💪', color: 'green', order: 2 },
+            personal: { name: 'Personal Life', icon: '🌟', color: 'blue', order: 3 },
+            relationships: { name: 'Key Relationships', icon: '❤️', color: 'pink', order: 4 },
+            job: { name: 'Job/Career', icon: '💼', color: 'indigo', order: 5 },
+            business: { name: 'Business', icon: '🚀', color: 'orange', order: 6 },
+            financial: { name: 'Financial Life', icon: '💰', color: 'yellow', order: 7 }
+        };
+
+        const createEmptyGoals = () => ({
+            someday: { text: '', updatedAt: null },
+            fiveYear: { text: '', updatedAt: null },
+            oneYear: { text: '', updatedAt: null },
+            monthly: { text: '', updatedAt: null },
+            weekly: { text: '', updatedAt: null },
+            daily: { text: '', updatedAt: null }
+        });
+
         const getInitialState = () => ({
-            goals: {
-                someday: { text: '', updatedAt: null },
-                fiveYear: { text: '', updatedAt: null },
-                oneYear: { text: '', updatedAt: null },
-                monthly: { text: '', updatedAt: null },
-                weekly: { text: '', updatedAt: null },
-                daily: { text: '', updatedAt: null }
-            },
+            version: 2, // Track data version for migrations
+            lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
+                acc[key] = {
+                    active: false,
+                    goals: createEmptyGoals(),
+                    completions: []
+                };
+                return acc;
+            }, {}),
             timeBlocks: [],
-            completions: [],
             currentQuoteIndex: 0
         });
+
+        // Migrate old data format to new multi-track format
+        const migrateData = (oldData) => {
+            // If already version 2, no migration needed
+            if (oldData.version === 2) return oldData;
+
+            // Migrate from version 1 (single track) to version 2 (multi-track)
+            const newState = getInitialState();
+
+            // If old data has goals, migrate them to "business" area (most common use case)
+            if (oldData.goals) {
+                newState.lifeAreas.business.active = true;
+                newState.lifeAreas.business.goals = oldData.goals;
+
+                // Migrate completions
+                if (oldData.completions) {
+                    newState.lifeAreas.business.completions = oldData.completions;
+                }
+            }
+
+            // Migrate time blocks (add lifeArea: 'business' if not present)
+            if (oldData.timeBlocks) {
+                newState.timeBlocks = oldData.timeBlocks.map(block => ({
+                    ...block,
+                    lifeArea: block.lifeArea || 'business'
+                }));
+            }
+
+            // Preserve quote index
+            if (oldData.currentQuoteIndex !== undefined) {
+                newState.currentQuoteIndex = oldData.currentQuoteIndex;
+            }
+
+            return newState;
+        };
 
         // LocalStorage fallback
         const loadFromLocalStorage = () => {
             const saved = localStorage.getItem('oneThingApp');
             if (saved) {
                 try {
-                    return JSON.parse(saved);
+                    const parsed = JSON.parse(saved);
+                    return migrateData(parsed);
                 } catch (e) {
                     console.error('Error parsing saved data:', e);
                 }
@@ -222,6 +279,7 @@
             const [state, setState] = useState(getInitialState);
             const [currentView, setCurrentView] = useState('dashboard');
             const [syncing, setSyncing] = useState(false);
+            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
 
             // Auth state listener
             useEffect(() => {
@@ -254,7 +312,12 @@
 
                 const unsubscribe = docRef.onSnapshot((doc) => {
                     if (doc.exists) {
-                        setState(doc.data());
+                        const data = migrateData(doc.data());
+                        setState(data);
+                        // If migration happened, save migrated data back
+                        if (data.version === 2 && doc.data().version !== 2) {
+                            docRef.set(data);
+                        }
                     } else {
                         // First time user - migrate from localStorage
                         const localData = loadFromLocalStorage();
@@ -282,13 +345,34 @@
                 }
             }, [user]);
 
-            // Update goal
-            const updateGoal = (level, text) => {
+            // Toggle life area active state
+            const toggleLifeArea = (areaKey) => {
                 const newState = {
                     ...state,
-                    goals: {
-                        ...state.goals,
-                        [level]: { text, updatedAt: new Date().toISOString() }
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            active: !state.lifeAreas[areaKey].active
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Update goal for a specific life area
+            const updateGoal = (areaKey, level, text) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                [level]: { text, updatedAt: new Date().toISOString() }
+                            }
+                        }
                     }
                 };
                 saveState(newState);
@@ -323,18 +407,25 @@
                 saveState(newState);
             };
 
-            // Mark daily goal as complete
-            const completeDaily = () => {
+            // Mark daily goal as complete for a specific life area
+            const completeDaily = (areaKey) => {
                 const today = new Date().toISOString().split('T')[0];
-                const alreadyCompleted = state.completions.some(c => c.date === today);
+                const area = state.lifeAreas[areaKey];
+                const alreadyCompleted = area.completions.some(c => c.date === today);
 
-                if (!alreadyCompleted && state.goals.daily.text) {
+                if (!alreadyCompleted && area.goals.daily.text) {
                     const newState = {
                         ...state,
-                        completions: [...state.completions, {
-                            date: today,
-                            goal: state.goals.daily.text
-                        }]
+                        lifeAreas: {
+                            ...state.lifeAreas,
+                            [areaKey]: {
+                                ...area,
+                                completions: [...area.completions, {
+                                    date: today,
+                                    goal: area.goals.daily.text
+                                }]
+                            }
+                        }
                     };
                     saveState(newState);
                 }
@@ -384,7 +475,9 @@
             };
 
             const today = new Date().toISOString().split('T')[0];
-            const isTodayCompleted = state.completions.some(c => c.date === today);
+
+            // Get active life areas
+            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
 
             if (loading) {
                 return (
@@ -429,24 +522,30 @@
                             <main className="mt-8">
                                 {currentView === 'dashboard' && (
                                     <Dashboard
-                                        goals={state.goals}
-                                        isTodayCompleted={isTodayCompleted}
+                                        lifeAreas={state.lifeAreas}
+                                        activeAreas={activeAreas}
                                         completeDaily={completeDaily}
                                         quote={QUOTES[state.currentQuoteIndex]}
                                         rotateQuote={rotateQuote}
+                                        toggleLifeArea={toggleLifeArea}
                                     />
                                 )}
 
                                 {currentView === 'goals' && (
                                     <GoalHierarchy
-                                        goals={state.goals}
+                                        lifeAreas={state.lifeAreas}
+                                        activeAreas={activeAreas}
+                                        selectedLifeArea={selectedLifeArea}
+                                        setSelectedLifeArea={setSelectedLifeArea}
                                         updateGoal={updateGoal}
+                                        toggleLifeArea={toggleLifeArea}
                                     />
                                 )}
 
                                 {currentView === 'timeblock' && (
                                     <TimeBlocking
-                                        goals={state.goals}
+                                        lifeAreas={state.lifeAreas}
+                                        activeAreas={activeAreas}
                                         timeBlocks={state.timeBlocks}
                                         addTimeBlock={addTimeBlock}
                                         updateTimeBlock={updateTimeBlock}
@@ -456,8 +555,8 @@
 
                                 {currentView === 'progress' && (
                                     <ProgressTracker
-                                        completions={state.completions}
-                                        goals={state.goals}
+                                        lifeAreas={state.lifeAreas}
+                                        activeAreas={activeAreas}
                                     />
                                 )}
 
@@ -487,24 +586,30 @@
                     <main className="max-w-7xl mx-auto px-4 py-8">
                         {currentView === 'dashboard' && (
                             <Dashboard
-                                goals={state.goals}
-                                isTodayCompleted={isTodayCompleted}
+                                lifeAreas={state.lifeAreas}
+                                activeAreas={activeAreas}
                                 completeDaily={completeDaily}
                                 quote={QUOTES[state.currentQuoteIndex]}
                                 rotateQuote={rotateQuote}
+                                toggleLifeArea={toggleLifeArea}
                             />
                         )}
 
                         {currentView === 'goals' && (
                             <GoalHierarchy
-                                goals={state.goals}
+                                lifeAreas={state.lifeAreas}
+                                activeAreas={activeAreas}
+                                selectedLifeArea={selectedLifeArea}
+                                setSelectedLifeArea={setSelectedLifeArea}
                                 updateGoal={updateGoal}
+                                toggleLifeArea={toggleLifeArea}
                             />
                         )}
 
                         {currentView === 'timeblock' && (
                             <TimeBlocking
-                                goals={state.goals}
+                                lifeAreas={state.lifeAreas}
+                                activeAreas={activeAreas}
                                 timeBlocks={state.timeBlocks}
                                 addTimeBlock={addTimeBlock}
                                 updateTimeBlock={updateTimeBlock}
@@ -514,8 +619,8 @@
 
                         {currentView === 'progress' && (
                             <ProgressTracker
-                                completions={state.completions}
-                                goals={state.goals}
+                                lifeAreas={state.lifeAreas}
+                                activeAreas={activeAreas}
                             />
                         )}
 
@@ -725,9 +830,12 @@
         // ==========================================
         // DASHBOARD
         // ==========================================
-        function Dashboard({ goals, isTodayCompleted, completeDaily, quote, rotateQuote }) {
+        function Dashboard({ lifeAreas, activeAreas, completeDaily, quote, rotateQuote, toggleLifeArea }) {
+            const today = new Date().toISOString().split('T')[0];
+
             return (
                 <div className="space-y-8 fade-in">
+                    {/* Quote Section */}
                     <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-white">
                         <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -745,54 +853,114 @@
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
-                        <div className="text-center space-y-6">
-                            <h2 className="text-3xl font-bold text-gray-900">Today's ONE Thing</h2>
-
-                            {goals.daily.text ? (
-                                <div className="space-y-6">
-                                    <div className={`text-5xl font-bold ${
-                                        isTodayCompleted ? 'text-green-600' : 'text-blue-600'
-                                    }`}>
-                                        {isTodayCompleted ? '✓' : '1'}
-                                    </div>
-
-                                    <p className={`text-2xl font-medium ${
-                                        isTodayCompleted ? 'text-gray-400 line-through' : 'text-gray-900'
-                                    }`}>
-                                        {goals.daily.text}
-                                    </p>
-
-                                    {!isTodayCompleted && (
-                                        <button
-                                            onClick={completeDaily}
-                                            className="px-8 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                                        >
-                                            Mark as Complete
-                                        </button>
-                                    )}
-
-                                    {isTodayCompleted && (
-                                        <p className="text-green-600 font-semibold">
-                                            Completed! Great job!
-                                        </p>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-4 py-8">
-                                    <p className="text-gray-400 text-lg">No ONE Thing set for today</p>
-                                </div>
-                            )}
+                    {/* Life Areas Manager */}
+                    {activeAreas.length === 0 && (
+                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6">
+                            <h3 className="text-xl font-bold text-yellow-900 mb-2">Get Started</h3>
+                            <p className="text-yellow-800 mb-4">
+                                Activate the life areas you want to focus on. Based on The ONE Thing methodology, you can track goals in multiple areas:
+                            </p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {Object.keys(LIFE_AREAS).map(key => (
+                                    <button
+                                        key={key}
+                                        onClick={() => toggleLifeArea(key)}
+                                        className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm"
+                                    >
+                                        {LIFE_AREAS[key].icon} {LIFE_AREAS[key].name}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    <DominoVisualization goals={goals} />
+                    {/* Today's ONE Things - One card per active area */}
+                    {activeAreas.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {activeAreas.map(areaKey => {
+                                const area = lifeAreas[areaKey];
+                                const areaInfo = LIFE_AREAS[areaKey];
+                                const isCompleted = area.completions.some(c => c.date === today);
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <GoalCard title="This Week" goal={goals.weekly.text} color="purple" />
-                        <GoalCard title="This Month" goal={goals.monthly.text} color="indigo" />
-                        <GoalCard title="This Year" goal={goals.oneYear.text} color="blue" />
-                    </div>
+                                return (
+                                    <div key={areaKey} className="bg-white rounded-xl p-6 shadow-sm border-2 border-gray-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                                                <span className="mr-2">{areaInfo.icon}</span>
+                                                {areaInfo.name}
+                                            </h3>
+                                            <button
+                                                onClick={() => toggleLifeArea(areaKey)}
+                                                className="text-gray-400 hover:text-red-600 text-xs"
+                                                title="Deactivate"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+
+                                        {area.goals.daily.text ? (
+                                            <div className="space-y-4">
+                                                <div className={`text-3xl font-bold ${
+                                                    isCompleted ? 'text-green-600' : 'text-blue-600'
+                                                }`}>
+                                                    {isCompleted ? '✓' : '1'}
+                                                </div>
+
+                                                <p className={`text-lg font-medium ${
+                                                    isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'
+                                                }`}>
+                                                    {area.goals.daily.text}
+                                                </p>
+
+                                                {!isCompleted && (
+                                                    <button
+                                                        onClick={() => completeDaily(areaKey)}
+                                                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
+                                                    >
+                                                        Complete
+                                                    </button>
+                                                )}
+
+                                                {isCompleted && (
+                                                    <p className="text-green-600 font-semibold text-sm">
+                                                        Completed! ✓
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="text-gray-400 italic text-sm">
+                                                No ONE Thing set for today
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Add More Areas Button */}
+                    {activeAreas.length > 0 && activeAreas.length < Object.keys(LIFE_AREAS).length && (
+                        <div className="text-center">
+                            <details className="inline-block">
+                                <summary className="cursor-pointer text-blue-600 hover:text-blue-700 font-medium">
+                                    + Add another life area
+                                </summary>
+                                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                                    {Object.keys(LIFE_AREAS)
+                                        .filter(key => !activeAreas.includes(key))
+                                        .map(key => (
+                                            <button
+                                                key={key}
+                                                onClick={() => toggleLifeArea(key)}
+                                                className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm"
+                                            >
+                                                {LIFE_AREAS[key].icon} {LIFE_AREAS[key].name}
+                                            </button>
+                                        ))}
+                                </div>
+                            </details>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -861,7 +1029,7 @@
         // ==========================================
         // GOAL HIERARCHY
         // ==========================================
-        function GoalHierarchy({ goals, updateGoal }) {
+        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, toggleLifeArea }) {
             const levels = [
                 {
                     key: 'someday',
@@ -916,10 +1084,81 @@
                 green: 'border-green-200 bg-green-50'
             };
 
+            // If no areas active, prompt to add one
+            if (activeAreas.length === 0) {
+                return (
+                    <div className="fade-in">
+                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-8">
+                            <h3 className="text-2xl font-bold text-yellow-900 mb-4">Activate a Life Area</h3>
+                            <p className="text-yellow-800 mb-6">
+                                Choose which area of your life you want to set goals for:
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {Object.keys(LIFE_AREAS).map(key => (
+                                    <button
+                                        key={key}
+                                        onClick={() => {
+                                            toggleLifeArea(key);
+                                            setSelectedLifeArea(key);
+                                        }}
+                                        className="px-6 py-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-left flex items-center"
+                                    >
+                                        <span className="text-2xl mr-3">{LIFE_AREAS[key].icon}</span>
+                                        <div>
+                                            <div className="font-semibold">{LIFE_AREAS[key].name}</div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            const goals = lifeAreas[selectedLifeArea].goals;
+            const currentArea = LIFE_AREAS[selectedLifeArea];
+
             return (
                 <div className="space-y-6 fade-in">
+                    {/* Life Area Selector */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Life Area:</h3>
+                        <div className="flex flex-wrap gap-2">
+                            {activeAreas.map(areaKey => (
+                                <button
+                                    key={areaKey}
+                                    onClick={() => setSelectedLifeArea(areaKey)}
+                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                        selectedLifeArea === areaKey
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {LIFE_AREAS[areaKey].icon} {LIFE_AREAS[areaKey].name}
+                                </button>
+                            ))}
+                            {activeAreas.length < Object.keys(LIFE_AREAS).length && (
+                                <button
+                                    onClick={() => {
+                                        const inactive = Object.keys(LIFE_AREAS).find(k => !activeAreas.includes(k));
+                                        if (inactive) {
+                                            toggleLifeArea(inactive);
+                                            setSelectedLifeArea(inactive);
+                                        }
+                                    }}
+                                    className="px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-500 hover:text-blue-600"
+                                >
+                                    + Add Area
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Goal Setting to the Now</h2>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center">
+                            <span className="mr-2">{currentArea.icon}</span>
+                            {currentArea.name} Goals
+                        </h2>
                         <p className="text-gray-600">
                             Work backwards from your biggest goal to what you can do today
                         </p>
@@ -946,7 +1185,7 @@
 
                             <textarea
                                 value={goals[level.key].text}
-                                onChange={(e) => updateGoal(level.key, e.target.value)}
+                                onChange={(e) => updateGoal(selectedLifeArea, level.key, e.target.value)}
                                 placeholder={`Enter your ${level.label.toLowerCase()}...`}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                                 rows="3"
@@ -966,12 +1205,13 @@
         // ==========================================
         // TIME BLOCKING
         // ==========================================
-        function TimeBlocking({ goals, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
+        function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [newBlock, setNewBlock] = useState({
                 startTime: '09:00',
                 duration: 4,
-                task: ''
+                task: '',
+                lifeArea: activeAreas[0] || 'business'
             });
 
             const handleAddBlock = () => {
@@ -1028,7 +1268,24 @@
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">Add Time Block</h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Life Area
+                                </label>
+                                <select
+                                    value={newBlock.lifeArea}
+                                    onChange={(e) => setNewBlock({ ...newBlock, lifeArea: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                    {activeAreas.map(areaKey => (
+                                        <option key={areaKey} value={areaKey}>
+                                            {LIFE_AREAS[areaKey].icon} {LIFE_AREAS[areaKey].name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Start Time
@@ -1073,13 +1330,25 @@
                             </div>
                         </div>
 
-                        {goals.daily.text && (
-                            <button
-                                onClick={() => setNewBlock({ ...newBlock, task: goals.daily.text })}
-                                className="text-sm text-blue-600 hover:text-blue-700 mb-4"
-                            >
-                                Use today's ONE Thing: "{goals.daily.text}"
-                            </button>
+                        {activeAreas.length > 0 && (
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                <span className="text-sm text-gray-600">Quick fill:</span>
+                                {activeAreas.map(areaKey => {
+                                    const dailyGoal = lifeAreas[areaKey].goals.daily.text;
+                                    if (dailyGoal) {
+                                        return (
+                                            <button
+                                                key={areaKey}
+                                                onClick={() => setNewBlock({ ...newBlock, task: dailyGoal, lifeArea: areaKey })}
+                                                className="text-sm px-3 py-1 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                                            >
+                                                {LIFE_AREAS[areaKey].icon} {dailyGoal.substring(0, 30)}{dailyGoal.length > 30 ? '...' : ''}
+                                            </button>
+                                        );
+                                    }
+                                    return null;
+                                })}
+                            </div>
                         )}
 
                         <button
@@ -1105,39 +1374,48 @@
                             </p>
                         ) : (
                             <div className="space-y-3">
-                                {todayBlocks.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(block => (
-                                    <div
-                                        key={block.id}
-                                        className={`time-block p-4 ${block.completed ? 'filled' : ''}`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center space-x-3">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={block.completed}
-                                                        onChange={(e) => updateTimeBlock(block.id, { completed: e.target.checked })}
-                                                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                                                    />
-                                                    <div>
-                                                        <p className={`font-semibold ${block.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                                                            {block.task}
-                                                        </p>
-                                                        <p className="text-sm text-gray-500">
-                                                            {block.startTime} - {block.endTime}
-                                                        </p>
+                                {todayBlocks.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(block => {
+                                    const areaInfo = LIFE_AREAS[block.lifeArea] || LIFE_AREAS.business;
+                                    return (
+                                        <div
+                                            key={block.id}
+                                            className={`time-block p-4 ${block.completed ? 'filled' : ''}`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center space-x-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={block.completed}
+                                                            onChange={(e) => updateTimeBlock(block.id, { completed: e.target.checked })}
+                                                            className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-lg">{areaInfo.icon}</span>
+                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                                                    {areaInfo.name}
+                                                                </span>
+                                                            </div>
+                                                            <p className={`font-semibold ${block.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                                                                {block.task}
+                                                            </p>
+                                                            <p className="text-sm text-gray-500">
+                                                                {block.startTime} - {block.endTime}
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
+                                                <button
+                                                    onClick={() => deleteTimeBlock(block.id)}
+                                                    className="text-red-600 hover:text-red-700 px-3 py-1 text-sm"
+                                                >
+                                                    Delete
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => deleteTimeBlock(block.id)}
-                                                className="text-red-600 hover:text-red-700 px-3 py-1 text-sm"
-                                            >
-                                                Delete
-                                            </button>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -1148,7 +1426,20 @@
         // ==========================================
         // PROGRESS TRACKER
         // ==========================================
-        function ProgressTracker({ completions, goals }) {
+        function ProgressTracker({ lifeAreas, activeAreas }) {
+            // Aggregate completions from all active life areas
+            const allCompletions = [];
+            Object.keys(lifeAreas).forEach(areaKey => {
+                if (lifeAreas[areaKey].active) {
+                    lifeAreas[areaKey].completions.forEach(comp => {
+                        allCompletions.push({
+                            ...comp,
+                            lifeArea: areaKey
+                        });
+                    });
+                }
+            });
+
             const today = new Date();
             const last30Days = Array.from({ length: 30 }, (_, i) => {
                 const date = new Date(today);
@@ -1156,7 +1447,7 @@
                 return date.toISOString().split('T')[0];
             });
 
-            const completionMap = completions.reduce((acc, comp) => {
+            const completionMap = allCompletions.reduce((acc, comp) => {
                 acc[comp.date] = true;
                 return acc;
             }, {});
@@ -1240,34 +1531,43 @@
 
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Completions</h3>
-                        {completions.length === 0 ? (
+                        {allCompletions.length === 0 ? (
                             <p className="text-gray-400 text-center py-8">
                                 No completions yet. Start by setting and completing your daily ONE Thing!
                             </p>
                         ) : (
                             <div className="space-y-3">
-                                {completions
+                                {allCompletions
                                     .slice()
-                                    .reverse()
+                                    .sort((a, b) => new Date(b.date) - new Date(a.date))
                                     .slice(0, 10)
-                                    .map((completion, index) => (
-                                        <div
-                                            key={index}
-                                            className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
-                                        >
-                                            <div className="text-green-500 text-xl">✓</div>
-                                            <div className="flex-1">
-                                                <p className="font-medium text-gray-900">{completion.goal}</p>
-                                                <p className="text-sm text-gray-500">
-                                                    {new Date(completion.date).toLocaleDateString('en-US', {
-                                                        weekday: 'long',
-                                                        month: 'long',
-                                                        day: 'numeric'
-                                                    })}
-                                                </p>
+                                    .map((completion, index) => {
+                                        const areaInfo = LIFE_AREAS[completion.lifeArea];
+                                        return (
+                                            <div
+                                                key={index}
+                                                className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
+                                            >
+                                                <div className="text-green-500 text-xl">✓</div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-lg">{areaInfo.icon}</span>
+                                                        <span className={`text-xs px-2 py-0.5 rounded-full bg-${areaInfo.color}-100 text-${areaInfo.color}-700 font-medium`}>
+                                                            {areaInfo.name}
+                                                        </span>
+                                                    </div>
+                                                    <p className="font-medium text-gray-900">{completion.goal}</p>
+                                                    <p className="text-sm text-gray-500">
+                                                        {new Date(completion.date).toLocaleDateString('en-US', {
+                                                            weekday: 'long',
+                                                            month: 'long',
+                                                            day: 'numeric'
+                                                        })}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 }
                             </div>
                         )}
