@@ -199,12 +199,19 @@
             fiveYear: { text: '', updatedAt: null },
             oneYear: { text: '', updatedAt: null },
             monthly: { text: '', updatedAt: null },
-            weekly: { text: '', updatedAt: null },
+            // 4-1-1 System: 4 weekly goals, 1 is THE ONE
+            weeklyGoals: [
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null }
+            ],
+            weeklyOneThingIndex: 0, // Which of the 4 is THE weekly ONE Thing (0-3)
             daily: { text: '', updatedAt: null }
         });
 
         const getInitialState = () => ({
-            version: 3, // Track data version for migrations
+            version: 4, // Track data version for migrations (v4 = proper 4-1-1 system)
             lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
                 acc[key] = {
                     active: false,
@@ -220,28 +227,61 @@
             lastAnnualReview: null   // ISO date of last annual review
         });
 
-        // Migrate old data format to new multi-track format
+        // Migrate old data format to new 4-1-1 format
         const migrateData = (oldData) => {
-            // If already version 3, no migration needed
-            if (oldData.version === 3) return oldData;
+            // If already version 4, no migration needed
+            if (oldData.version === 4) return oldData;
 
-            // If version 2, just add 4-1-1 fields
+            // Helper function to convert single weekly goal to 4-1-1 structure
+            const convertWeeklyTo411 = (goals) => {
+                if (goals.weeklyGoals) return goals; // Already converted
+
+                const newGoals = { ...goals };
+                const oldWeeklyText = goals.weekly?.text || '';
+
+                // Convert single weekly to 4 weekly goals (put old one in slot 0)
+                newGoals.weeklyGoals = [
+                    { text: oldWeeklyText, updatedAt: goals.weekly?.updatedAt || null },
+                    { text: '', updatedAt: null },
+                    { text: '', updatedAt: null },
+                    { text: '', updatedAt: null }
+                ];
+                newGoals.weeklyOneThingIndex = 0; // First goal is THE ONE by default
+                delete newGoals.weekly; // Remove old field
+
+                return newGoals;
+            };
+
+            // Version 3 → 4: Convert weekly goals to 4-1-1 for each life area
+            if (oldData.version === 3) {
+                const newData = { ...oldData, version: 4 };
+                Object.keys(newData.lifeAreas).forEach(areaKey => {
+                    newData.lifeAreas[areaKey].goals = convertWeeklyTo411(newData.lifeAreas[areaKey].goals);
+                });
+                return newData;
+            }
+
+            // Version 2 → 4: Add time blocking fields + convert to 4-1-1
             if (oldData.version === 2) {
-                return {
+                const newData = {
                     ...oldData,
-                    version: 3,
+                    version: 4,
                     lastWeeklyReview: null,
                     lastAnnualReview: null
                 };
+                Object.keys(newData.lifeAreas).forEach(areaKey => {
+                    newData.lifeAreas[areaKey].goals = convertWeeklyTo411(newData.lifeAreas[areaKey].goals);
+                });
+                return newData;
             }
 
-            // Migrate from version 1 (single track) to version 3 (multi-track + 4-1-1)
+            // Version 1 → 4: Full migration (single track to multi-track + 4-1-1)
             const newState = getInitialState();
 
-            // If old data has goals, migrate them to "business" area (most common use case)
+            // If old data has goals, migrate them to "business" area
             if (oldData.goals) {
                 newState.lifeAreas.business.active = true;
-                newState.lifeAreas.business.goals = oldData.goals;
+                newState.lifeAreas.business.goals = convertWeeklyTo411(oldData.goals);
 
                 // Migrate completions
                 if (oldData.completions) {
@@ -328,7 +368,7 @@
                         const data = migrateData(doc.data());
                         setState(data);
                         // If migration happened, save migrated data back
-                        if (data.version === 3 && doc.data().version !== 3) {
+                        if (data.version === 4 && doc.data().version !== 4) {
                             docRef.set(data);
                         }
                     } else {
@@ -384,6 +424,46 @@
                             goals: {
                                 ...state.lifeAreas[areaKey].goals,
                                 [level]: { text, updatedAt: new Date().toISOString() }
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Update one of the 4 weekly goals (4-1-1 system)
+            const updateWeeklyGoal = (areaKey, index, text) => {
+                const goals = state.lifeAreas[areaKey].goals;
+                const updatedWeeklyGoals = [...goals.weeklyGoals];
+                updatedWeeklyGoals[index] = { text, updatedAt: new Date().toISOString() };
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...goals,
+                                weeklyGoals: updatedWeeklyGoals
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Set which of the 4 weekly goals is THE weekly ONE Thing
+            const setWeeklyOneThing = (areaKey, index) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                weeklyOneThingIndex: index
                             }
                         }
                     }
@@ -571,6 +651,8 @@
                                         selectedLifeArea={selectedLifeArea}
                                         setSelectedLifeArea={setSelectedLifeArea}
                                         updateGoal={updateGoal}
+                                        updateWeeklyGoal={updateWeeklyGoal}
+                                        setWeeklyOneThing={setWeeklyOneThing}
                                         toggleLifeArea={toggleLifeArea}
                                     />
                                 )}
@@ -583,10 +665,6 @@
                                         addTimeBlock={addTimeBlock}
                                         updateTimeBlock={updateTimeBlock}
                                         deleteTimeBlock={deleteTimeBlock}
-                                        lastWeeklyReview={state.lastWeeklyReview}
-                                        lastAnnualReview={state.lastAnnualReview}
-                                        markWeeklyReview={markWeeklyReview}
-                                        markAnnualReview={markAnnualReview}
                                     />
                                 )}
 
@@ -639,6 +717,8 @@
                                 selectedLifeArea={selectedLifeArea}
                                 setSelectedLifeArea={setSelectedLifeArea}
                                 updateGoal={updateGoal}
+                                updateWeeklyGoal={updateWeeklyGoal}
+                                setWeeklyOneThing={setWeeklyOneThing}
                                 toggleLifeArea={toggleLifeArea}
                             />
                         )}
@@ -651,10 +731,6 @@
                                 addTimeBlock={addTimeBlock}
                                 updateTimeBlock={updateTimeBlock}
                                 deleteTimeBlock={deleteTimeBlock}
-                                lastWeeklyReview={state.lastWeeklyReview}
-                                lastAnnualReview={state.lastAnnualReview}
-                                markWeeklyReview={markWeeklyReview}
-                                markAnnualReview={markAnnualReview}
                             />
                         )}
 
@@ -939,8 +1015,25 @@
                                             </button>
                                         </div>
 
+                                        {/* Weekly ONE Thing (from 4-1-1) */}
+                                        {area.goals.weeklyGoals && area.goals.weeklyGoals[area.goals.weeklyOneThingIndex]?.text && (
+                                            <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                                                <div className="flex items-center mb-1">
+                                                    <span className="text-xs font-semibold text-teal-700 uppercase">Weekly ONE Thing</span>
+                                                </div>
+                                                <p className="text-sm text-teal-900">
+                                                    {area.goals.weeklyGoals[area.goals.weeklyOneThingIndex].text}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Daily ONE Thing */}
                                         {area.goals.daily.text ? (
                                             <div className="space-y-4">
+                                                <div className="flex items-center mb-1">
+                                                    <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
+                                                </div>
+
                                                 <div className={`text-3xl font-bold ${
                                                     isCompleted ? 'text-green-600' : 'text-blue-600'
                                                 }`}>
@@ -1070,7 +1163,7 @@
         // ==========================================
         // GOAL HIERARCHY
         // ==========================================
-        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, toggleLifeArea }) {
+        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
             const levels = [
                 {
                     key: 'someday',
@@ -1099,21 +1192,9 @@
                     question: 'What\'s the ONE Thing I can do this month?',
                     description: 'This month\'s priority that advances your yearly goal',
                     color: 'cyan'
-                },
-                {
-                    key: 'weekly',
-                    label: 'Weekly Goal',
-                    question: 'What\'s the ONE Thing I can do this week?',
-                    description: 'This week\'s focus that contributes to your monthly goal',
-                    color: 'teal'
-                },
-                {
-                    key: 'daily',
-                    label: 'Daily Goal',
-                    question: 'What\'s the ONE Thing I can do today?',
-                    description: 'The single most important thing you can do right now',
-                    color: 'green'
                 }
+                // Weekly goals are now handled separately with 4-1-1 system
+                // Daily goal is handled separately below
             ];
 
             const colorClasses = {
@@ -1239,6 +1320,94 @@
                             )}
                         </div>
                     ))}
+
+                    {/* 4-1-1 Weekly Goals System */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-teal-200 bg-teal-50 transition-all hover:shadow-md">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                5. Weekly Goals (4-1-1 System)
+                            </h3>
+                            <p className="text-sm text-gray-600 italic mb-2">
+                                "What are the 4 most important outcomes this week?"
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                List the 4 priorities for this week, then select THE ONE that matters most
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            {goals.weeklyGoals.map((weeklyGoal, index) => {
+                                const isTheOne = goals.weeklyOneThingIndex === index;
+                                return (
+                                    <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg border-2 ${
+                                        isTheOne ? 'border-teal-500 bg-teal-100' : 'border-gray-200 bg-white'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name={`weekly-one-thing-${selectedLifeArea}`}
+                                            checked={isTheOne}
+                                            onChange={() => setWeeklyOneThing(selectedLifeArea, index)}
+                                            className="mt-2 w-5 h-5 text-teal-600 focus:ring-2 focus:ring-teal-500"
+                                            title="Select as THE weekly ONE Thing"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex items-center mb-1">
+                                                <label className="text-sm font-semibold text-gray-700">
+                                                    Weekly Goal {index + 1}
+                                                    {isTheOne && <span className="ml-2 px-2 py-0.5 bg-teal-600 text-white text-xs rounded-full">THE ONE</span>}
+                                                </label>
+                                            </div>
+                                            <textarea
+                                                value={weeklyGoal.text}
+                                                onChange={(e) => updateWeeklyGoal(selectedLifeArea, index, e.target.value)}
+                                                placeholder={`Weekly priority ${index + 1}...`}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                                rows="2"
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-sm text-blue-900">
+                                <strong>💡 How 4-1-1 works:</strong> List your 4 most important weekly outcomes.
+                                Select the radio button next to THE ONE that matters most. Your daily goal should make that weekly ONE Thing easier or unnecessary.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Daily Goal */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-green-200 bg-green-50 transition-all hover:shadow-md">
+                        <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                    6. Daily Goal (Today's ONE Thing)
+                                </h3>
+                                <p className="text-sm text-gray-600 italic mb-2">
+                                    "What's the ONE Thing I can do today to make my weekly ONE Thing easier or unnecessary?"
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                    The single action today that moves your weekly priority forward
+                                </p>
+                            </div>
+                        </div>
+
+                        <textarea
+                            value={goals.daily.text}
+                            onChange={(e) => updateGoal(selectedLifeArea, 'daily', e.target.value)}
+                            placeholder="Enter today's ONE Thing..."
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                            rows="3"
+                        />
+
+                        {goals.daily.updatedAt && (
+                            <p className="text-xs text-gray-400 mt-2">
+                                Last updated: {new Date(goals.daily.updatedAt).toLocaleDateString()}
+                            </p>
+                        )}
+                    </div>
                 </div>
             );
         }
@@ -1246,7 +1415,7 @@
         // ==========================================
         // TIME BLOCKING
         // ==========================================
-        function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock, lastWeeklyReview, lastAnnualReview, markWeeklyReview, markAnnualReview }) {
+        function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
             const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
             const [newBlock, setNewBlock] = useState({
                 startTime: '09:00',
@@ -1269,25 +1438,14 @@
                     startTime: newBlock.startTime,
                     endTime: end.toTimeString().slice(0, 5),
                     task: newBlock.task,
+                    lifeArea: newBlock.lifeArea,
                     completed: false
                 });
 
-                setNewBlock({ startTime: '09:00', duration: 4, task: '' });
+                setNewBlock({ startTime: '09:00', duration: 4, task: '', lifeArea: newBlock.lifeArea });
             };
 
             const todayBlocks = timeBlocks.filter(block => block.date === selectedDate);
-
-            // Calculate days since last reviews
-            const today = new Date().toISOString().split('T')[0];
-            const daysSinceWeeklyReview = lastWeeklyReview
-                ? Math.floor((new Date(today) - new Date(lastWeeklyReview)) / (1000 * 60 * 60 * 24))
-                : null;
-            const daysSinceAnnualReview = lastAnnualReview
-                ? Math.floor((new Date(today) - new Date(lastAnnualReview)) / (1000 * 60 * 60 * 24))
-                : null;
-
-            const weeklyReviewDue = !lastWeeklyReview || daysSinceWeeklyReview >= 7;
-            const annualReviewDue = !lastAnnualReview || daysSinceAnnualReview >= 365;
 
             return (
                 <div className="space-y-6 fade-in">
@@ -1299,61 +1457,11 @@
                     </div>
 
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                        <h3 className="font-semibold text-blue-900 mb-2">The 4-1-1 System</h3>
-                        <p className="text-blue-800 text-sm mb-4">
-                            Block <strong>4 hours every day</strong> for your ONE Thing, <strong>1 hour each week</strong> to review goals,
-                            and <strong>1 hour annually</strong> to review your long-term vision.
+                        <h3 className="font-semibold text-blue-900 mb-2">The Power of Time Blocking</h3>
+                        <p className="text-blue-800 text-sm">
+                            Protect time for your ONE Thing by blocking off dedicated chunks. The recommended duration is 4 hours -
+                            this ensures you have the uninterrupted focus needed for extraordinary results.
                         </p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {/* Weekly Review */}
-                            <div className={`p-4 rounded-lg ${weeklyReviewDue ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-white border border-blue-200'}`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <div className="font-semibold text-gray-900 mb-1">📅 Weekly Review</div>
-                                        <div className="text-sm text-gray-600">
-                                            {!lastWeeklyReview && "Never done - schedule your first one!"}
-                                            {lastWeeklyReview && !weeklyReviewDue && `Done ${daysSinceWeeklyReview} day${daysSinceWeeklyReview !== 1 ? 's' : ''} ago`}
-                                            {lastWeeklyReview && weeklyReviewDue && `Due! (${daysSinceWeeklyReview} days since last)`}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={markWeeklyReview}
-                                        className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                                            weeklyReviewDue
-                                                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                                        }`}
-                                    >
-                                        Mark Done
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Annual Review */}
-                            <div className={`p-4 rounded-lg ${annualReviewDue ? 'bg-yellow-50 border-2 border-yellow-400' : 'bg-white border border-blue-200'}`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <div className="font-semibold text-gray-900 mb-1">🎯 Annual Review</div>
-                                        <div className="text-sm text-gray-600">
-                                            {!lastAnnualReview && "Never done - time to plan!"}
-                                            {lastAnnualReview && !annualReviewDue && `Done ${daysSinceAnnualReview} day${daysSinceAnnualReview !== 1 ? 's' : ''} ago`}
-                                            {lastAnnualReview && annualReviewDue && `Due! (${daysSinceAnnualReview} days since last)`}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={markAnnualReview}
-                                        className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                                            annualReviewDue
-                                                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                                        }`}
-                                    >
-                                        Mark Done
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
