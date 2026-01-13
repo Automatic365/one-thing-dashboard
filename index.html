@@ -676,6 +676,9 @@
 
             // Set which of the 5 annual goals is THE annual ONE Thing
             const setAnnualOneThing = (areaKey, index) => {
+                if (!Number.isInteger(index) || index < 0 || index > 4) {
+                    return;
+                }
                 const newState = {
                     ...state,
                     lifeAreas: {
@@ -716,6 +719,9 @@
 
             // Set which of the 5 monthly goals is THE monthly ONE Thing
             const setMonthlyOneThing = (areaKey, index) => {
+                if (!Number.isInteger(index) || index < 0 || index > 4) {
+                    return;
+                }
                 const newState = {
                     ...state,
                     lifeAreas: {
@@ -756,6 +762,9 @@
 
             // Set which of the 5 weekly goals is THE weekly ONE Thing
             const setWeeklyOneThing = (areaKey, index) => {
+                if (!Number.isInteger(index) || index < 0 || index > 4) {
+                    return;
+                }
                 const newState = {
                     ...state,
                     lifeAreas: {
