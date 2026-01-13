@@ -430,10 +430,11 @@
 
                 const unsubscribe = docRef.onSnapshot((doc) => {
                     if (doc.exists) {
-                        const data = migrateData(doc.data());
+                        const originalData = doc.data();
+                        const data = migrateData(originalData);
                         setState(data);
-                        // If migration happened, save migrated data back
-                        if (data.version === 4 && doc.data().version !== 4) {
+                        // If migration happened (version changed), save migrated data back
+                        if (data.version !== originalData.version) {
                             docRef.set(data);
                         }
                     } else {
