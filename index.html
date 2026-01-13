@@ -797,6 +797,10 @@
                                         selectedLifeArea={selectedLifeArea}
                                         setSelectedLifeArea={setSelectedLifeArea}
                                         updateGoal={updateGoal}
+                                        updateAnnualGoal={updateAnnualGoal}
+                                        setAnnualOneThing={setAnnualOneThing}
+                                        updateMonthlyGoal={updateMonthlyGoal}
+                                        setMonthlyOneThing={setMonthlyOneThing}
                                         updateWeeklyGoal={updateWeeklyGoal}
                                         setWeeklyOneThing={setWeeklyOneThing}
                                         toggleLifeArea={toggleLifeArea}
@@ -863,6 +867,10 @@
                                 selectedLifeArea={selectedLifeArea}
                                 setSelectedLifeArea={setSelectedLifeArea}
                                 updateGoal={updateGoal}
+                                updateAnnualGoal={updateAnnualGoal}
+                                setAnnualOneThing={setAnnualOneThing}
+                                updateMonthlyGoal={updateMonthlyGoal}
+                                setMonthlyOneThing={setMonthlyOneThing}
                                 updateWeeklyGoal={updateWeeklyGoal}
                                 setWeeklyOneThing={setWeeklyOneThing}
                                 toggleLifeArea={toggleLifeArea}
@@ -1354,7 +1362,7 @@
         // ==========================================
         // GOAL HIERARCHY
         // ==========================================
-        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
+        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateAnnualGoal, setAnnualOneThing, updateMonthlyGoal, setMonthlyOneThing, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
             const levels = [
                 {
                     key: 'someday',
