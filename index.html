@@ -932,18 +932,41 @@
             };
 
             // Mark daily goal as complete for a specific life area
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
             const completeDaily = (areaKey) => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalDateString();
                 const area = state.lifeAreas[areaKey];
                 const alreadyCompleted = area.completions.some(c => c.date === today);
 
-                if (!alreadyCompleted && area.goals.daily.text) {
+                if (alreadyCompleted) {
+                    // Remove completion
                     const newState = {
                         ...state,
                         lifeAreas: {
                             ...state.lifeAreas,
                             [areaKey]: {
                                 ...area,
+                                ...state.lifeAreas[areaKey], // Sustain other props
+                                completions: area.completions.filter(c => c.date !== today)
+                            }
+                        }
+                    };
+                    saveState(newState);
+                } else if (area.goals.daily.text) {
+                    // Add completion
+                    const newState = {
+                        ...state,
+                        lifeAreas: {
+                            ...state.lifeAreas,
+                            [areaKey]: {
+                                ...area,
+                                ...state.lifeAreas[areaKey],
                                 completions: [...area.completions, {
                                     date: today,
                                     goal: area.goals.daily.text
@@ -957,7 +980,7 @@
 
             // Mark weekly review as complete (4-1-1 system)
             const markWeeklyReview = () => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalDateString();
                 const newState = {
                     ...state,
                     lastWeeklyReview: today
@@ -967,7 +990,7 @@
 
             // Mark annual review as complete (4-1-1 system)
             const markAnnualReview = () => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalDateString();
                 const newState = {
                     ...state,
                     lastAnnualReview: today
@@ -982,7 +1005,7 @@
                 const url = URL.createObjectURL(dataBlob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `one-thing-backup-${new Date().toISOString().split('T')[0]}.json`;
+                link.download = `one-thing-backup-${getLocalDateString()}.json`;
                 link.click();
                 URL.revokeObjectURL(url);
             };
@@ -1403,7 +1426,14 @@
         // DASHBOARD
         // ==========================================
         function Dashboard({ lifeAreas, activeAreas, completeDaily, quote, rotateQuote, toggleLifeArea }) {
-            const today = new Date().toISOString().split('T')[0];
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
+            const today = getLocalDateString();
 
             return (
                 <div className="space-y-8 fade-in">
@@ -1523,17 +1553,26 @@
                                                 </div>
 
                                                 {isCompleted ? (
-                                                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
-                                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                                                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+                                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
+                                                                        {area.goals.daily.text}
+                                                                    </p>
+                                                                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
-                                                                    {area.goals.daily.text}
-                                                                </p>
-                                                                <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
-                                                            </div>
+                                                            <button
+                                                                onClick={() => completeDaily(areaKey)}
+                                                                className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50 hover:border-red-500/30"
+                                                                title="Undo completion"
+                                                            >
+                                                                Undo
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 ) : area.goals.daily.text ? (
@@ -2058,7 +2097,14 @@
         // TIME BLOCKING
         // ==========================================
         function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
-            const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
+            const [selectedDate, setSelectedDate] = useState(getLocalDateString());
             const [newBlock, setNewBlock] = useState({
                 startTime: '09:00',
                 duration: 4,
@@ -2072,6 +2118,8 @@
                     return;
                 }
 
+                // Create correct start/end times preserving the selected date
+                // Append T to ensure it is treated as local iso time
                 const start = new Date(`${selectedDate}T${newBlock.startTime}`);
                 const end = new Date(start.getTime() + newBlock.duration * 60 * 60 * 1000);
 
@@ -2088,6 +2136,13 @@
             };
 
             const todayBlocks = timeBlocks.filter(block => block.date === selectedDate);
+
+            // Helper to parsing YYYY-MM-DD as local date for display
+            const formatDisplayDate = (dateStr) => {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const date = new Date(y, m - 1, d); // Month is 0-indexed
+                return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+            };
 
             return (
                 <div className="space-y-8 fade-in text-white">
@@ -2230,7 +2285,7 @@
                             <div className="glass rounded-2xl p-6 border border-slate-700/50 min-h-[500px]">
                                 <h3 className="text-xl font-bold text-white mb-6 flex items-center justify-between">
                                     <span>Schedule &nbsp;<span className="text-slate-500 font-normal text-base">
-                                        {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                        {formatDisplayDate(selectedDate)}
                                     </span></span>
                                     {todayBlocks.length > 0 && <span className="text-xs font-normal px-2 py-1 bg-slate-800 rounded-lg text-slate-400">{todayBlocks.length} blocks</span>}
                                 </h3>
@@ -2303,6 +2358,12 @@
         // PROGRESS TRACKER
         // ==========================================
         function ProgressTracker({ lifeAreas, activeAreas }) {
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = (dateObj = new Date()) => {
+                const offset = dateObj.getTimezoneOffset() * 60000;
+                return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+            };
+
             // Aggregate completions from all active life areas
             const allCompletions = [];
             Object.keys(lifeAreas).forEach(areaKey => {
@@ -2316,11 +2377,13 @@
                 }
             });
 
-            const today = new Date();
+            // Use local date for 'today'
+            const todayStr = getLocalDateString();
+
             const last30Days = Array.from({ length: 30 }, (_, i) => {
-                const date = new Date(today);
+                const date = new Date();
                 date.setDate(date.getDate() - (29 - i));
-                return date.toISOString().split('T')[0];
+                return getLocalDateString(date);
             });
 
             const completionMap = allCompletions.reduce((acc, comp) => {
@@ -2333,9 +2396,9 @@
 
             let currentStreak = 0;
             for (let i = 0; i < 30; i++) {
-                const date = new Date(today);
+                const date = new Date();
                 date.setDate(date.getDate() - i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = getLocalDateString(date);
                 if (completionMap[dateStr]) {
                     currentStreak++;
                 } else {
@@ -2388,8 +2451,9 @@
                         <div className="grid grid-cols-10 gap-3">
                             {last30Days.map((date, i) => {
                                 const isCompleted = completionMap[date];
-                                const dateObj = new Date(date);
-                                const isToday = date === today.toISOString().split('T')[0];
+                                const [y, m, d] = date.split('-').map(Number);
+                                const dateObj = new Date(y, m - 1, d);
+                                const isToday = date === todayStr;
 
                                 return (
                                     <div
@@ -2429,6 +2493,8 @@
                                     .slice(0, 10)
                                     .map((completion, index) => {
                                         const areaInfo = LIFE_AREAS[completion.lifeArea];
+                                        const [y, m, d] = completion.date.split('-').map(Number);
+                                        const dateObj = new Date(y, m - 1, d);
                                         return (
                                             <div
                                                 key={index}
@@ -2446,8 +2512,9 @@
                                                     </div>
                                                     <p className="font-medium text-white group-hover:text-indigo-200 transition-colors">{completion.goal}</p>
                                                     <p className="text-xs text-slate-500 mt-1">
-                                                        {new Date(completion.date).toLocaleDateString('en-US', {
+                                                        {dateObj.toLocaleDateString('en-US', {
                                                             weekday: 'long',
+                                                            year: 'numeric',
                                                             month: 'long',
                                                             day: 'numeric'
                                                         })}
@@ -2455,8 +2522,7 @@
                                                 </div>
                                             </div>
                                         );
-                                    })
-                                }
+                                    })}
                             </div>
                         )}
                     </div>
