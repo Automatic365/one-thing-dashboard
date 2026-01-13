@@ -1455,9 +1455,12 @@
                                             .map(areaKey => (
                                                 <button
                                                     key={areaKey}
-                                                    onClick={() => {
+                                                    onClick={(e) => {
                                                         toggleLifeArea(areaKey);
                                                         setSelectedLifeArea(areaKey);
+                                                        // Close the dropdown
+                                                        const details = e.target.closest('details');
+                                                        if (details) details.open = false;
                                                     }}
                                                     className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center"
                                                 >
