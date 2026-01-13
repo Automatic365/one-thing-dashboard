@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,37 @@
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            950: '#020617',
+                        }
+                    },
+                    boxShadow: {
+                        'glow': '0 0 15px rgba(124, 58, 237, 0.3)',
+                        'glow-cyan': '0 0 15px rgba(6, 182, 212, 0.3)',
+                        'glow-teal': '0 0 15px rgba(13, 148, 136, 0.3)',
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -19,109 +51,362 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            /* Neon Palette */
+            --neon-cyan: #06b6d4;
+            --neon-magenta: #d946ef;
+            --neon-green: #10b981;
+            --neon-blue: #3b82f6;
+            --deep-space: #030712;
+            --grid-color: rgba(6, 182, 212, 0.1);
+        }
 
         body {
             font-family: 'Inter', sans-serif;
+            background-color: var(--deep-space);
+            color: #e2e8f0;
+            overflow-x: hidden;
         }
 
+        /* Headings Font */
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6,
+        .font-display {
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.05em;
+        }
+
+        .font-tech {
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        /* Moving Grid Background */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 200vw;
+            height: 200vh;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            z-index: -1;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        .grid-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.15) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        @keyframes gridMove {
+            0% {
+                transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px);
+            }
+
+            100% {
+                transform: perspective(500px) rotateX(60deg) translateY(40px) translateZ(-200px);
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 0;
+            border: 1px solid #06b6d4;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+            box-shadow: 0 0 10px var(--neon-cyan);
+        }
+
+        /* High-Tech Glass */
+        .glass {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(6, 182, 212, 0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* HUD Corner Borders */
+        .hud-card {
+            position: relative;
+        }
+
+        .hud-card::before,
+        .hud-card::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--neon-cyan);
+            transition: all 0.3s ease;
+            opacity: 0.5;
+        }
+
+        .hud-card::before {
+            top: 0;
+            left: 0;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .hud-card::after {
+            bottom: 0;
+            right: 0;
+            border-left: none;
+            border-top: none;
+        }
+
+        .hud-card:hover::before,
+        .hud-card:hover::after {
+            width: 100%;
+            height: 100%;
+            opacity: 1;
+            box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+        }
+
+        /* Neon Glows */
+        .glass-hover:hover {
+            background: rgba(6, 182, 212, 0.05);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 30px rgba(6, 182, 212, 0.2), inset 0 0 10px rgba(6, 182, 212, 0.1);
+        }
+
+        /* Glitch Effect */
+        .glitch-text:hover {
+            animation: glitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite;
+            color: var(--neon-cyan);
+        }
+
+        @keyframes glitch {
+            0% {
+                transform: translate(0)
+            }
+
+            20% {
+                transform: translate(-2px, 2px)
+            }
+
+            40% {
+                transform: translate(-2px, -2px)
+            }
+
+            60% {
+                transform: translate(2px, 2px)
+            }
+
+            80% {
+                transform: translate(2px, -2px)
+            }
+
+            100% {
+                transform: translate(0)
+            }
+        }
+
+        /* Domino Styles */
         .domino-chain {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 1rem;
+            gap: 1.5rem;
+            flex-wrap: wrap;
         }
 
         .domino {
             width: 60px;
             height: 100px;
-            background: white;
-            border: 3px solid #e5e7eb;
-            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(6, 182, 212, 0.3);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             padding: 8px;
             position: relative;
-            transition: all 0.3s ease;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);
+            clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
         }
 
         .domino.completed {
-            background: #10b981;
-            border-color: #059669;
-            transform: rotate(-15deg);
+            background: rgba(16, 185, 129, 0.1);
+            border-color: var(--neon-green);
+            transform: translateY(5px);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
         }
 
         .domino.active {
-            background: #3b82f6;
-            border-color: #2563eb;
-            transform: scale(1.1);
-            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+            background: rgba(6, 182, 212, 0.1);
+            border-color: var(--neon-cyan);
+            transform: scale(1.15) translateY(-5px);
+            box-shadow: 0 0 40px rgba(6, 182, 212, 0.6);
+            z-index: 10;
         }
 
         .domino-dot {
-            width: 8px;
-            height: 8px;
-            background: #4b5563;
-            border-radius: 50%;
+            width: 6px;
+            height: 6px;
+            background: #475569;
+            border-radius: 0;
+            /* Square dots for tech look */
+            transition: all 0.3s ease;
         }
 
         .domino.completed .domino-dot,
         .domino.active .domino-dot {
-            background: white;
+            background: #fff;
+            box-shadow: 0 0 8px #fff;
         }
 
         .arrow {
             font-size: 24px;
-            color: #9ca3af;
+            color: #334155;
+            transition: all 0.3s ease;
+            font-family: 'Orbitron', monospace;
+        }
+
+        .domino:hover+.arrow,
+        .domino.active+.arrow {
+            color: var(--neon-cyan);
+            text-shadow: 0 0 10px var(--neon-cyan);
+            transform: translateX(5px);
         }
 
         .time-block {
-            min-height: 60px;
-            border: 2px dashed #e5e7eb;
-            border-radius: 8px;
+            min-height: 70px;
+            border: 1px dashed rgba(6, 182, 212, 0.3);
+            background: rgba(15, 23, 42, 0.3);
             transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .time-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: transparent;
+            transition: background 0.3s;
         }
 
         .time-block:hover {
-            border-color: #3b82f6;
-            background: #eff6ff;
+            border-color: var(--neon-cyan);
+            background: rgba(6, 182, 212, 0.05);
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
+        }
+
+        .time-block:hover::before {
+            background: var(--neon-cyan);
         }
 
         .time-block.filled {
             border-style: solid;
-            border-color: #3b82f6;
-            background: #dbeafe;
-        }
-
-        .goal-card {
-            transition: all 0.2s ease;
-        }
-
-        .goal-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: var(--neon-cyan);
+            background: rgba(6, 182, 212, 0.1);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+                filter: blur(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+                filter: blur(0);
+            }
         }
 
         .fade-in {
-            animation: fadeIn 0.5s ease;
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        /* Scanline Animation */
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 10;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(6, 182, 212, 0.1) 50%, rgba(0, 0, 0, 0) 100%);
+            opacity: 0.1;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 10s linear infinite;
+            pointer-events: none;
         }
 
+        @keyframes scanline {
+            0% {
+                bottom: 100%;
+            }
+
+            80% {
+                bottom: 100%;
+            }
+
+            100% {
+                bottom: -100%;
+            }
+        }
+
+        /* Gradient Text */
+        .text-gradient {
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(to right, #06b6d4, #d946ef);
+            filter: drop-shadow(0 0 5px rgba(6, 182, 212, 0.5));
+        }
+
+        /* Spinner */
         .spinner {
+            border: 3px solid rgba(6, 182, 212, 0.1);
+            border-left-color: var(--neon-cyan);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
             animation: spin 1s linear infinite;
         }
     </style>
 </head>
-<body class="bg-gray-50">
+
+<body class="antialiased selection:bg-cyan-500 selection:text-black">
+    <div class="grid-bg"></div>
+    <div class="grid-glow"></div>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -647,18 +932,41 @@
             };
 
             // Mark daily goal as complete for a specific life area
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
             const completeDaily = (areaKey) => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalDateString();
                 const area = state.lifeAreas[areaKey];
                 const alreadyCompleted = area.completions.some(c => c.date === today);
 
-                if (!alreadyCompleted && area.goals.daily.text) {
+                if (alreadyCompleted) {
+                    // Remove completion
                     const newState = {
                         ...state,
                         lifeAreas: {
                             ...state.lifeAreas,
                             [areaKey]: {
                                 ...area,
+                                ...state.lifeAreas[areaKey], // Sustain other props
+                                completions: area.completions.filter(c => c.date !== today)
+                            }
+                        }
+                    };
+                    saveState(newState);
+                } else if (area.goals.daily.text) {
+                    // Add completion
+                    const newState = {
+                        ...state,
+                        lifeAreas: {
+                            ...state.lifeAreas,
+                            [areaKey]: {
+                                ...area,
+                                ...state.lifeAreas[areaKey],
                                 completions: [...area.completions, {
                                     date: today,
                                     goal: area.goals.daily.text
@@ -672,7 +980,7 @@
 
             // Mark weekly review as complete (4-1-1 system)
             const markWeeklyReview = () => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalDateString();
                 const newState = {
                     ...state,
                     lastWeeklyReview: today
@@ -682,7 +990,7 @@
 
             // Mark annual review as complete (4-1-1 system)
             const markAnnualReview = () => {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getLocalDateString();
                 const newState = {
                     ...state,
                     lastAnnualReview: today
@@ -697,7 +1005,7 @@
                 const url = URL.createObjectURL(dataBlob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `one-thing-backup-${new Date().toISOString().split('T')[0]}.json`;
+                link.download = `one-thing-backup-${getLocalDateString()}.json`;
                 link.click();
                 URL.revokeObjectURL(url);
             };
@@ -742,8 +1050,8 @@
                 return (
                     <div className="min-h-screen flex items-center justify-center">
                         <div className="text-center">
-                            <div className="spinner inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full"></div>
-                            <p className="mt-4 text-gray-600">Loading...</p>
+                            <div className="spinner inline-block w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full shadow-glow"></div>
+                            <p className="mt-4 text-slate-400 font-medium">Loading your legacy...</p>
                         </div>
                     </div>
                 );
@@ -755,22 +1063,26 @@
 
             if (!isFirebaseConfigured) {
                 return (
-                    <div className="min-h-screen bg-gray-50">
+                    <div className="min-h-screen bg-slate-900 text-slate-50">
                         <div className="max-w-4xl mx-auto px-4 py-16">
-                            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-8 mb-8">
-                                <h2 className="text-2xl font-bold text-yellow-900 mb-4">⚠️ Firebase Not Configured</h2>
-                                <p className="text-yellow-800 mb-4">
-                                    Your app is currently using localStorage (local-only storage).
+                            <div className="glass border border-yellow-500/30 rounded-xl p-8 mb-8 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <span className="text-9xl">⚠️</span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center">
+                                    <span className="mr-3 text-3xl">⚠️</span> Firebase Not Configured
+                                </h2>
+                                <p className="text-slate-300 mb-4 leading-relaxed">
+                                    Your app is currently using <strong className="text-white">localStorage</strong> (local-only storage).
                                     To sync across devices, you need to set up Firebase.
                                 </p>
-                                <p className="text-yellow-800 mb-4">
+                                <p className="text-slate-300 mb-6 leading-relaxed">
                                     <strong>Don't worry!</strong> Your app still works perfectly on this device.
-                                    Use the Export/Import feature in Settings to transfer data between devices.
                                 </p>
                                 <a
                                     href="FIREBASE_SETUP.md"
                                     target="_blank"
-                                    className="inline-block px-6 py-3 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700"
+                                    className="inline-block px-8 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-bold shadow-lg hover:shadow-orange-500/30 transition-all transform hover:-translate-y-1"
                                 >
                                     View Firebase Setup Instructions
                                 </a>
@@ -839,7 +1151,7 @@
             }
 
             return (
-                <div className="min-h-screen bg-gray-50">
+                <div className="min-h-screen">
                     <Navigation
                         currentView={currentView}
                         setCurrentView={setCurrentView}
@@ -950,41 +1262,47 @@
             };
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center px-4">
-                    <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-                        <div className="text-center mb-8">
-                            <div className="text-5xl font-bold text-blue-600 mb-2">1</div>
-                            <h1 className="text-3xl font-bold text-gray-900">The ONE Thing</h1>
-                            <p className="text-gray-600 mt-2">Focus on what matters most</p>
+                <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+                    {/* Background Blobs */}
+                    <div className="absolute top-0 left-0 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse-slow"></div>
+                    <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse-slow animation-delay-2000"></div>
+
+                    <div className="max-w-md w-full glass rounded-2xl p-8 relative z-10 animate-float">
+                        <div className="text-center mb-10">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-4 shadow-glow">
+                                <span className="text-4xl font-bold text-white">1</span>
+                            </div>
+                            <h1 className="text-3xl font-bold text-white mb-2">The ONE Thing</h1>
+                            <p className="text-slate-400">Focus on what matters most</p>
                         </div>
 
                         {/* Google Sign-In Button */}
                         <button
                             onClick={handleGoogleSignIn}
                             disabled={loading}
-                            className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center justify-center space-x-3 mb-4"
+                            className="w-full bg-white text-gray-800 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-all transform hover:-translate-y-0.5 disabled:opacity-50 flex items-center justify-center space-x-3 mb-6 shadow-lg"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                             </svg>
-                            <span>{loading ? 'Please wait...' : 'Continue with Google'}</span>
+                            <span>{loading ? 'Connecting...' : 'Continue with Google'}</span>
                         </button>
 
-                        <div className="relative my-6">
+                        <div className="relative my-8">
                             <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-gray-300"></div>
+                                <div className="w-full border-t border-slate-700"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-white text-gray-500">Or continue with email</span>
+                                <span className="px-4 bg-slate-800 text-slate-400 rounded-full">Or continue with email</span>
                             </div>
                         </div>
 
                         <form onSubmit={handleAuth} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-slate-400 mb-2 ml-1">
                                     Email
                                 </label>
                                 <input
@@ -992,13 +1310,13 @@
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white placeholder-slate-600 transition-all"
                                     placeholder="you@example.com"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-slate-400 mb-2 ml-1">
                                     Password
                                 </label>
                                 <input
@@ -1007,30 +1325,30 @@
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
                                     minLength="6"
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white placeholder-slate-600 transition-all"
                                     placeholder="••••••••"
                                 />
                             </div>
 
                             {error && (
-                                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                                    {error}
+                                <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-3 rounded-xl text-sm flex items-center">
+                                    <span className="mr-2">⚠️</span> {error}
                                 </div>
                             )}
 
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-xl font-bold hover:shadow-glow transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
                             >
-                                {loading ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Sign Up'}
+                                {loading ? 'Processing...' : mode === 'login' ? 'Log In' : 'Sign Up'}
                             </button>
                         </form>
 
-                        <div className="mt-6 text-center">
+                        <div className="mt-8 text-center">
                             <button
                                 onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-                                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                                className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
                             >
                                 {mode === 'login' ? "Don't have an account? Sign Up" : 'Already have an account? Log In'}
                             </button>
@@ -1053,40 +1371,46 @@
             ];
 
             return (
-                <nav className="bg-white border-b border-gray-200">
+                <nav className="sticky top-0 z-50 glass border-b border-slate-700/50 mb-6">
                     <div className="max-w-7xl mx-auto px-4">
-                        <div className="flex items-center justify-between h-16">
-                            <div className="flex items-center space-x-2">
-                                <div className="text-2xl font-bold text-blue-600">1</div>
-                                <div className="text-xl font-semibold text-gray-900">The ONE Thing</div>
+                        <div className="flex items-center justify-between h-20">
+                            <div className="flex items-center space-x-3">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-glow">
+                                    <span className="text-xl font-bold text-white">1</span>
+                                </div>
+                                <div>
+                                    <div className="text-lg font-bold text-white tracking-tight">The ONE Thing</div>
+                                </div>
                                 {syncing && (
-                                    <div className="ml-2 text-sm text-gray-500 flex items-center">
-                                        <div className="spinner inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full mr-1"></div>
-                                        Syncing...
+                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs flex items-center border border-indigo-500/30">
+                                        <div className="spinner inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full mr-1.5"></div>
+                                        Syncing
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex items-center space-x-1">
-                                {navItems.map(item => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => setCurrentView(item.id)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                            currentView === item.id
-                                                ? 'bg-blue-50 text-blue-600'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        <span className="mr-1">{item.icon}</span>
-                                        <span className="hidden md:inline">{item.label}</span>
-                                    </button>
-                                ))}
+                                {navItems.map(item => {
+                                    const isActive = currentView === item.id;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => setCurrentView(item.id)}
+                                            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                                                ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
+                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                                                }`}
+                                        >
+                                            <span className="mr-2">{item.icon}</span>
+                                            <span className="hidden md:inline">{item.label}</span>
+                                        </button>
+                                    );
+                                })}
 
                                 {user && handleLogout && (
                                     <button
                                         onClick={handleLogout}
-                                        className="ml-4 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                                        className="ml-4 px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
                                     >
                                         Logout
                                     </button>
@@ -1102,43 +1426,62 @@
         // DASHBOARD
         // ==========================================
         function Dashboard({ lifeAreas, activeAreas, completeDaily, quote, rotateQuote, toggleLifeArea }) {
-            const today = new Date().toISOString().split('T')[0];
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
+            const today = getLocalDateString();
 
             return (
                 <div className="space-y-8 fade-in">
                     {/* Quote Section */}
-                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-white">
-                        <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                                <p className="text-2xl font-light leading-relaxed italic">
-                                    "{quote}"
-                                </p>
+                    <div className="relative group perspective-1000">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                        <div className="relative glass rounded-2xl p-8 transform transition-transform duration-500 hover:rotate-x-2">
+                            <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                    <p className="text-2xl font-light leading-relaxed italic text-white/90 drop-shadow-sm font-serif">
+                                        "{quote}"
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={rotateQuote}
+                                    className="ml-4 p-2 rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-all transform hover:rotate-180 duration-500"
+                                    title="Next quote"
+                                >
+                                    ↻
+                                </button>
                             </div>
-                            <button
-                                onClick={rotateQuote}
-                                className="ml-4 text-white/80 hover:text-white text-sm"
-                                title="Next quote"
-                            >
-                                ↻
-                            </button>
                         </div>
                     </div>
 
                     {/* Life Areas Manager */}
                     {activeAreas.length === 0 && (
-                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6">
-                            <h3 className="text-xl font-bold text-yellow-900 mb-2">Get Started</h3>
-                            <p className="text-yellow-800 mb-4">
-                                Activate the life areas you want to focus on. Based on The ONE Thing methodology, you can track goals in multiple areas:
+                        <div className="glass border border-yellow-500/30 rounded-2xl p-8 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                <span className="text-9xl">✨</span>
+                            </div>
+                            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-4">
+                                Begin Your Journey
+                            </h3>
+                            <p className="text-slate-300 mb-8 max-w-2xl text-lg leading-relaxed">
+                                Activate the life areas you want to focus on. Based on The ONE Thing methodology,
+                                success is sequential, not simultaneous.
                             </p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {Object.keys(LIFE_AREAS).map(key => (
                                     <button
                                         key={key}
                                         onClick={() => toggleLifeArea(key)}
-                                        className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm"
+                                        className="group relative px-6 py-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700 hover:border-indigo-500/50 transition-all duration-300"
                                     >
-                                        {LIFE_AREAS[key].icon} {LIFE_AREAS[key].name}
+                                        <div className="flex flex-col items-center gap-2">
+                                            <span className="text-2xl group-hover:scale-110 transition-transform duration-300">{LIFE_AREAS[key].icon}</span>
+                                            <span className="text-slate-300 group-hover:text-white font-medium">{LIFE_AREAS[key].name}</span>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
@@ -1154,117 +1497,110 @@
                                 const isCompleted = area.completions.some(c => c.date === today);
 
                                 return (
-                                    <div key={areaKey} className="bg-white rounded-xl p-6 shadow-sm border-2 border-gray-200">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-lg font-bold text-gray-900 flex items-center">
-                                                <span className="mr-2">{areaInfo.icon}</span>
-                                                {areaInfo.name}
+                                    <div key={areaKey} className="glass rounded-2xl p-6 relative overflow-hidden group hover:bg-slate-800/40 transition-colors duration-500">
+                                        {/* Background decoration */}
+                                        <div className={`absolute top-0 right-0 w-32 h-32 bg-${areaInfo.color}-500 rounded-full mix-blend-overlay filter blur-3xl opacity-5 group-hover:opacity-10 transition-opacity`}></div>
+
+                                        <div className="flex items-center justify-between mb-6 relative z-10">
+                                            <h3 className="text-lg font-bold text-white flex items-center">
+                                                <span className="mr-3 text-2xl">{areaInfo.icon}</span>
+                                                <span className="tracking-wide">{areaInfo.name}</span>
                                             </h3>
                                             <button
                                                 onClick={() => toggleLifeArea(areaKey)}
-                                                className="text-gray-400 hover:text-red-600 text-xs"
-                                                title="Deactivate"
+                                                className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all transform hover:scale-110"
+                                                title="Deactivate area"
                                             >
                                                 ✕
                                             </button>
                                         </div>
 
-                                        {/* Annual ONE Thing */}
-                                        {area.goals.annualGoals && area.goals.annualGoals[area.goals.annualOneThingIndex]?.text && (
-                                            <div className="mb-3 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
-                                                <div className="flex items-center mb-1">
-                                                    <span className="text-xs font-semibold text-blue-700 uppercase">Annual ONE Thing</span>
-                                                </div>
-                                                <p className="text-sm text-blue-900">
-                                                    {area.goals.annualGoals[area.goals.annualOneThingIndex].text}
-                                                </p>
+                                        <div className="space-y-4 relative z-10">
+                                            {/* Goals Progress Pill stack */}
+                                            <div className="space-y-2">
+                                                {/* Annual */}
+                                                {area.goals.annualGoals && area.goals.annualGoals[area.goals.annualOneThingIndex]?.text && (
+                                                    <div className="flex items-center text-xs group/item opacity-60 hover:opacity-100 transition-opacity">
+                                                        <div className="w-16 font-mono text-slate-500 uppercase tracking-wider text-[10px]">Year</div>
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 mr-3"></div>
+                                                        <div className="text-slate-300 truncate">{area.goals.annualGoals[area.goals.annualOneThingIndex].text}</div>
+                                                    </div>
+                                                )}
+
+                                                {/* Monthly */}
+                                                {area.goals.monthlyGoals && area.goals.monthlyGoals[area.goals.monthlyOneThingIndex]?.text && (
+                                                    <div className="flex items-center text-xs group/item opacity-70 hover:opacity-100 transition-opacity">
+                                                        <div className="w-16 font-mono text-slate-500 uppercase tracking-wider text-[10px]">Month</div>
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-cyan-500 mr-3"></div>
+                                                        <div className="text-slate-300 truncate">{area.goals.monthlyGoals[area.goals.monthlyOneThingIndex].text}</div>
+                                                    </div>
+                                                )}
+
+                                                {/* Weekly */}
+                                                {area.goals.weeklyGoals && area.goals.weeklyGoals[area.goals.weeklyOneThingIndex]?.text && (
+                                                    <div className="flex items-center text-xs group/item opacity-80 hover:opacity-100 transition-opacity">
+                                                        <div className="w-16 font-mono text-slate-500 uppercase tracking-wider text-[10px]">Week</div>
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-teal-500 mr-3"></div>
+                                                        <div className="text-slate-300 truncate">{area.goals.weeklyGoals[area.goals.weeklyOneThingIndex].text}</div>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
 
-                                        {/* Monthly ONE Thing */}
-                                        {area.goals.monthlyGoals && area.goals.monthlyGoals[area.goals.monthlyOneThingIndex]?.text && (
-                                            <div className="mb-3 p-2.5 bg-cyan-50 border border-cyan-200 rounded-lg">
-                                                <div className="flex items-center mb-1">
-                                                    <span className="text-xs font-semibold text-cyan-700 uppercase">Monthly ONE Thing</span>
+                                            {/* Daily ONE Thing - The centerpiece */}
+                                            <div className="mt-6 pt-6 border-t border-slate-700/50">
+                                                <div className="flex items-center mb-4">
+                                                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Today's ONE Thing</span>
                                                 </div>
-                                                <p className="text-sm text-cyan-900">
-                                                    {area.goals.monthlyGoals[area.goals.monthlyOneThingIndex].text}
-                                                </p>
+
+                                                {isCompleted ? (
+                                                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+                                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
+                                                                        {area.goals.daily.text}
+                                                                    </p>
+                                                                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => completeDaily(areaKey)}
+                                                                className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50 hover:border-red-500/30"
+                                                                title="Undo completion"
+                                                            >
+                                                                Undo
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : area.goals.daily.text ? (
+                                                    <div className="space-y-4">
+                                                        <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-lg font-medium text-white shadow-inner">
+                                                            {area.goals.daily.text}
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => completeDaily(areaKey)}
+                                                            className="w-full group relative flex items-center justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 shadow-lg shadow-indigo-600/30 transition-all duration-200 hover:-translate-y-0.5"
+                                                        >
+                                                            <span className="mr-2">Complete Task</span>
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center py-6 border-2 border-dashed border-slate-700/50 rounded-xl hover:border-slate-600 hover:bg-slate-800/30 transition-all cursor-default">
+                                                        <p className="text-slate-400 font-medium mb-1">
+                                                            No focus set for today
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Check your goals tab to prioritize
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-
-                                        {/* Weekly ONE Thing */}
-                                        {area.goals.weeklyGoals && area.goals.weeklyGoals[area.goals.weeklyOneThingIndex]?.text && (
-                                            <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
-                                                <div className="flex items-center mb-1">
-                                                    <span className="text-xs font-semibold text-teal-700 uppercase">Weekly ONE Thing</span>
-                                                </div>
-                                                <p className="text-sm text-teal-900">
-                                                    {area.goals.weeklyGoals[area.goals.weeklyOneThingIndex].text}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {/* Daily ONE Thing */}
-                                        {isCompleted ? (
-                                            // Completed today - show as done
-                                            <div className="space-y-4">
-                                                <div className="flex items-center mb-1">
-                                                    <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
-                                                </div>
-
-                                                <div className="text-3xl font-bold text-green-600">
-                                                    ✓
-                                                </div>
-
-                                                <p className="text-lg font-medium text-gray-400 line-through">
-                                                    {area.goals.daily.text}
-                                                </p>
-
-                                                <p className="text-green-600 font-semibold text-sm">
-                                                    Completed today! ✓
-                                                </p>
-                                            </div>
-                                        ) : area.goals.daily.text ? (
-                                            // Has a goal but not completed today - show as in progress
-                                            <div className="space-y-4">
-                                                <div className="flex items-center mb-1">
-                                                    <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
-                                                </div>
-
-                                                <div className="text-3xl font-bold text-blue-600">
-                                                    1
-                                                </div>
-
-                                                <p className="text-lg font-medium text-gray-900">
-                                                    {area.goals.daily.text}
-                                                </p>
-
-                                                <button
-                                                    onClick={() => completeDaily(areaKey)}
-                                                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
-                                                >
-                                                    Complete
-                                                </button>
-
-                                                <p className="text-xs text-gray-500 text-center">
-                                                    Update your goal in the Goals tab if needed
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            // No goal set
-                                            <div className="space-y-3">
-                                                <div className="flex items-center mb-1">
-                                                    <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
-                                                </div>
-                                                <p className="text-gray-600 font-medium">
-                                                    What is today's ONE Thing?
-                                                </p>
-                                                <p className="text-sm text-gray-500">
-                                                    Go to the Goals tab to set your daily goal
-                                                </p>
-                                            </div>
-                                        )}
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -1273,19 +1609,24 @@
 
                     {/* Add More Areas Button */}
                     {activeAreas.length > 0 && activeAreas.length < Object.keys(LIFE_AREAS).length && (
-                        <div className="text-center">
-                            <details className="inline-block">
-                                <summary className="cursor-pointer text-blue-600 hover:text-blue-700 font-medium">
-                                    + Add another life area
+                        <div className="text-center pt-8">
+                            <details className="inline-block group">
+                                <summary className="cursor-pointer inline-flex items-center px-6 py-3 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700 transition-all list-none">
+                                    <span className="mr-2 text-xl">+</span> Add another life area
                                 </summary>
-                                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                                <div className="mt-6 flex flex-wrap gap-3 justify-center max-w-2xl mx-auto fade-in">
                                     {Object.keys(LIFE_AREAS)
                                         .filter(key => !activeAreas.includes(key))
                                         .map(key => (
                                             <button
                                                 key={key}
-                                                onClick={() => toggleLifeArea(key)}
-                                                className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-sm"
+                                                onClick={(e) => {
+                                                    toggleLifeArea(key);
+                                                    // Close the dropdown
+                                                    const details = e.target.closest('details');
+                                                    if (details) details.open = false;
+                                                }}
+                                                className="px-4 py-2 bg-slate-800/80 backdrop-blur text-slate-300 rounded-lg hover:bg-indigo-600 hover:text-white border border-slate-700 hover:border-indigo-500 transition-colors shadow-lg"
                                             >
                                                 {LIFE_AREAS[key].icon} {LIFE_AREAS[key].name}
                                             </button>
@@ -1306,11 +1647,11 @@
             };
 
             return (
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 goal-card">
-                    <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${colors[color]} text-white text-sm font-semibold mb-3`}>
+                <div className="glass rounded-xl p-6 border border-slate-700/50 hover:border-indigo-500/50 transition-colors group">
+                    <div className={`inline-block px-3 py-1 rounded-full bg-gradient-to-r ${colors[color]} text-white text-xs font-bold tracking-wider uppercase mb-3 shadow-lg shadow-indigo-500/20`}>
                         {title}
                     </div>
-                    <p className={`${goal ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                    <p className={`${goal ? 'text-slate-200' : 'text-slate-500 italic'} leading-relaxed`}>
                         {goal || 'Not set yet'}
                     </p>
                 </div>
@@ -1383,24 +1724,24 @@
             ];
 
             const colorClasses = {
-                purple: 'border-purple-200 bg-purple-50',
-                indigo: 'border-indigo-200 bg-indigo-50',
-                blue: 'border-blue-200 bg-blue-50',
-                cyan: 'border-cyan-200 bg-cyan-50',
-                teal: 'border-teal-200 bg-teal-50',
-                green: 'border-green-200 bg-green-50'
+                purple: 'border-purple-500/30 bg-purple-500/5',
+                indigo: 'border-indigo-500/30 bg-indigo-500/5',
+                blue: 'border-blue-500/30 bg-blue-500/5',
+                cyan: 'border-cyan-500/30 bg-cyan-500/5',
+                teal: 'border-teal-500/30 bg-teal-500/5',
+                green: 'border-green-500/30 bg-green-500/5'
             };
 
             // If no areas active, prompt to add one
             if (activeAreas.length === 0) {
                 return (
                     <div className="fade-in">
-                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-8">
-                            <h3 className="text-2xl font-bold text-yellow-900 mb-4">Activate a Life Area</h3>
-                            <p className="text-yellow-800 mb-6">
+                        <div className="glass border border-yellow-500/30 rounded-2xl p-8 text-center max-w-2xl mx-auto">
+                            <h3 className="text-2xl font-bold text-yellow-400 mb-4">Activate a Life Area</h3>
+                            <p className="text-slate-300 mb-8 text-lg">
                                 Choose which area of your life you want to set goals for:
                             </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {Object.keys(LIFE_AREAS).map(key => (
                                     <button
                                         key={key}
@@ -1408,11 +1749,11 @@
                                             toggleLifeArea(key);
                                             setSelectedLifeArea(key);
                                         }}
-                                        className="px-6 py-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-left flex items-center"
+                                        className="p-6 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 rounded-xl flex items-center transition-all group hover:scale-105 hover:shadow-glow"
                                     >
-                                        <span className="text-2xl mr-3">{LIFE_AREAS[key].icon}</span>
-                                        <div>
-                                            <div className="font-semibold">{LIFE_AREAS[key].name}</div>
+                                        <span className="text-4xl mr-4 group-hover:scale-110 transition-transform">{LIFE_AREAS[key].icon}</span>
+                                        <div className="text-left">
+                                            <div className="font-bold text-lg text-white group-hover:text-indigo-300 transition-colors">{LIFE_AREAS[key].name}</div>
                                         </div>
                                     </button>
                                 ))}
@@ -1426,30 +1767,30 @@
             const currentArea = LIFE_AREAS[selectedLifeArea];
 
             return (
-                <div className="space-y-6 fade-in">
+                <div className="space-y-8 fade-in">
                     {/* Life Area Selector */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Life Area:</h3>
-                        <div className="flex flex-wrap gap-2">
+                    <div className="glass rounded-xl p-6 border border-slate-700/50">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 ml-1">Select Life Area</h3>
+                        <div className="flex flex-wrap gap-3">
                             {activeAreas.map(areaKey => (
                                 <button
                                     key={areaKey}
                                     onClick={() => setSelectedLifeArea(areaKey)}
-                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                                        selectedLifeArea === areaKey
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                    className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-200 border flex items-center ${selectedLifeArea === areaKey
+                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+                                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 hover:border-slate-600'
+                                        }`}
                                 >
-                                    {LIFE_AREAS[areaKey].icon} {LIFE_AREAS[areaKey].name}
+                                    <span className="mr-2">{LIFE_AREAS[areaKey].icon}</span>
+                                    {LIFE_AREAS[areaKey].name}
                                 </button>
                             ))}
                             {activeAreas.length < Object.keys(LIFE_AREAS).length && (
-                                <details className="relative inline-block">
-                                    <summary className="px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-500 hover:text-blue-600 cursor-pointer list-none">
+                                <details className="relative inline-block group">
+                                    <summary className="px-5 py-2.5 rounded-xl border border-dashed border-slate-600 text-slate-500 hover:border-indigo-500 hover:text-indigo-400 cursor-pointer list-none transition-colors">
                                         + Add Area
                                     </summary>
-                                    <div className="absolute z-10 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[200px]">
+                                    <div className="absolute z-20 mt-3 p-2 bg-slate-800 rounded-xl shadow-xl border border-slate-700 min-w-[220px] backdrop-blur-xl animate-float">
                                         {Object.keys(LIFE_AREAS)
                                             .filter(k => !activeAreas.includes(k))
                                             .map(areaKey => (
@@ -1458,13 +1799,13 @@
                                                     onClick={(e) => {
                                                         toggleLifeArea(areaKey);
                                                         setSelectedLifeArea(areaKey);
-                                                        // Close the dropdown
+                                                        // Close the dropdown by finding parent details element
                                                         const details = e.target.closest('details');
                                                         if (details) details.open = false;
                                                     }}
-                                                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center"
+                                                    className="w-full px-4 py-3 text-left hover:bg-slate-700 rounded-lg flex items-center text-slate-300 hover:text-white transition-colors"
                                                 >
-                                                    <span className="mr-2">{LIFE_AREAS[areaKey].icon}</span>
+                                                    <span className="mr-3 text-lg">{LIFE_AREAS[areaKey].icon}</span>
                                                     {LIFE_AREAS[areaKey].name}
                                                 </button>
                                             ))}
@@ -1474,251 +1815,279 @@
                         </div>
                     </div>
 
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center">
-                            <span className="mr-2">{currentArea.icon}</span>
+                    <div className="text-center mb-10">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 mb-4 backdrop-blur-sm">
+                            <span className="text-5xl drop-shadow-lg filter">{currentArea.icon}</span>
+                        </div>
+                        <h2 className="text-4xl font-bold text-white mb-2 flex items-center justify-center tracking-tight">
                             {currentArea.name} Goals
                         </h2>
-                        <p className="text-gray-600">
+                        <p className="text-slate-400 text-lg max-w-2xl mx-auto font-light">
                             Work backwards from your biggest goal to what you can do today
                         </p>
                     </div>
 
-                    {levels.map((level, index) => (
-                        <div
-                            key={level.key}
-                            className={`bg-white rounded-xl p-6 shadow-sm border-2 ${colorClasses[level.color]} transition-all hover:shadow-md`}
-                        >
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex-1">
-                                    <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                        {index + 1}. {level.label}
-                                    </h3>
-                                    <p className="text-sm text-gray-600 italic mb-2">
-                                        "{level.question}"
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                        {level.description}
-                                    </p>
+                    <div className="space-y-8 max-w-4xl mx-auto">
+                        {levels.map((level, index) => (
+                            <div
+                                key={level.key}
+                                className={`glass rounded-2xl p-8 border hover:border-opacity-50 transition-all duration-300 group ${colorClasses[level.color]}`}
+                            >
+                                <div className="flex items-start justify-between mb-6">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <span className={`flex items-center justify-center w-8 h-8 rounded-full bg-${level.color}-500/20 text-${level.color}-300 font-mono text-sm border border-${level.color}-500/30`}>
+                                                {index + 1}
+                                            </span>
+                                            <h3 className="text-xl font-bold text-white tracking-wide">
+                                                {level.label}
+                                            </h3>
+                                        </div>
+                                        <p className="text-base text-slate-300 italic mb-1 ml-11">
+                                            "{level.question}"
+                                        </p>
+                                    </div>
                                 </div>
+
+                                <div className="relative">
+                                    <div className={`absolute -inset-0.5 bg-gradient-to-r from-${level.color}-500 to-purple-600 rounded-xl blur opacity-0 group-hover:opacity-20 transition duration-500`}></div>
+                                    <textarea
+                                        value={goals[level.key].text}
+                                        onChange={(e) => updateGoal(selectedLifeArea, level.key, e.target.value)}
+                                        placeholder={`Enter your ${level.label.toLowerCase()}...`}
+                                        className="relative w-full px-5 py-4 bg-slate-900/60 border border-slate-700/60 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white placeholder-slate-600 transition-all text-lg leading-relaxed focus:bg-slate-900/80 resize-none"
+                                        rows="3"
+                                    />
+                                </div>
+
+                                {goals[level.key].updatedAt && (
+                                    <p className="text-xs text-slate-500 mt-3 text-right font-mono">
+                                        Last updated: {new Date(goals[level.key].updatedAt).toLocaleDateString()}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+
+                        {/* Annual Goals (1-Year) - Multi-Goal System */}
+                        <div className="glass rounded-2xl p-8 border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 transition-colors group">
+                            <div className="mb-6">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/20 text-blue-300 font-mono text-sm border border-blue-500/30">
+                                        3
+                                    </span>
+                                    <h3 className="text-xl font-bold text-white tracking-wide">
+                                        Annual Goals (This Year)
+                                    </h3>
+                                </div>
+                                <p className="text-base text-slate-300 italic mb-2 ml-11">
+                                    "What are my most important outcomes this year?"
+                                </p>
                             </div>
 
-                            <textarea
-                                value={goals[level.key].text}
-                                onChange={(e) => updateGoal(selectedLifeArea, level.key, e.target.value)}
-                                placeholder={`Enter your ${level.label.toLowerCase()}...`}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                                rows="3"
-                            />
+                            <div className="space-y-4 ml-2">
+                                {goals.annualGoals.map((annualGoal, index) => {
+                                    const isTheOne = goals.annualOneThingIndex === index;
+                                    return (
+                                        <div key={index} className={`relative flex items-start p-4 rounded-xl border transition-all duration-300 ${isTheOne ? 'border-blue-500 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50'
+                                            }`}>
+                                            <div className="mr-4 mt-3">
+                                                <input
+                                                    type="radio"
+                                                    name={`annual-one-thing-${selectedLifeArea}`}
+                                                    checked={isTheOne}
+                                                    onChange={() => setAnnualOneThing(selectedLifeArea, index)}
+                                                    className="w-5 h-5 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900 bg-slate-700 border-slate-500 cursor-pointer"
+                                                    title="Select as THE annual ONE Thing"
+                                                />
+                                            </div>
+                                            <div className="flex-1 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                                        Priority {index + 1}
+                                                    </label>
+                                                    {isTheOne && <span className="px-2 py-0.5 bg-blue-500 text-white text-[10px] uppercase font-bold tracking-wider rounded-md shadow-lg shadow-blue-500/40">The ONE Thing</span>}
+                                                </div>
+                                                <textarea
+                                                    value={annualGoal.text}
+                                                    onChange={(e) => updateAnnualGoal(selectedLifeArea, index, e.target.value)}
+                                                    placeholder={`Annual priority ${index + 1}...`}
+                                                    className="w-full px-4 py-2 bg-transparent border-0 focus:ring-0 text-white placeholder-slate-600 transition-all text-base resize-none p-0"
+                                                    rows="2"
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
 
-                            {goals[level.key].updatedAt && (
-                                <p className="text-xs text-gray-400 mt-2">
-                                    Last updated: {new Date(goals[level.key].updatedAt).toLocaleDateString()}
+                            <div className="mt-6 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 ml-2">
+                                <p className="text-sm text-blue-200 flex gap-2">
+                                    <span className="text-lg">💡</span>
+                                    <span>
+                                        <strong>How it works:</strong> List your most important annual outcomes in priority order (up to 5).
+                                        Select the radio button next to THE ONE to focus on this year. This should support your 5-year goal.
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Monthly Goals - Multi-Goal System */}
+                        <div className="glass rounded-2xl p-8 border border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10 transition-colors group">
+                            <div className="mb-6">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-sm border border-cyan-500/30">
+                                        4
+                                    </span>
+                                    <h3 className="text-xl font-bold text-white tracking-wide">
+                                        Monthly Goals
+                                    </h3>
+                                </div>
+                                <p className="text-base text-slate-300 italic mb-2 ml-11">
+                                    "What are my most important outcomes this month?"
+                                </p>
+                            </div>
+
+                            <div className="space-y-4 ml-2">
+                                {goals.monthlyGoals.map((monthlyGoal, index) => {
+                                    const isTheOne = goals.monthlyOneThingIndex === index;
+                                    return (
+                                        <div key={index} className={`relative flex items-start p-4 rounded-xl border transition-all duration-300 ${isTheOne ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50'
+                                            }`}>
+                                            <div className="mr-4 mt-3">
+                                                <input
+                                                    type="radio"
+                                                    name={`monthly-one-thing-${selectedLifeArea}`}
+                                                    checked={isTheOne}
+                                                    onChange={() => setMonthlyOneThing(selectedLifeArea, index)}
+                                                    className="w-5 h-5 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-slate-900 bg-slate-700 border-slate-500 cursor-pointer"
+                                                    title="Select as THE monthly ONE Thing"
+                                                />
+                                            </div>
+                                            <div className="flex-1 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                                        Priority {index + 1}
+                                                    </label>
+                                                    {isTheOne && <span className="px-2 py-0.5 bg-cyan-500 text-white text-[10px] uppercase font-bold tracking-wider rounded-md shadow-lg shadow-cyan-500/40">The ONE Thing</span>}
+                                                </div>
+                                                <textarea
+                                                    value={monthlyGoal.text}
+                                                    onChange={(e) => updateMonthlyGoal(selectedLifeArea, index, e.target.value)}
+                                                    placeholder={`Monthly priority ${index + 1}...`}
+                                                    className="w-full px-4 py-2 bg-transparent border-0 focus:ring-0 text-white placeholder-slate-600 transition-all text-base resize-none p-0"
+                                                    rows="2"
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="mt-6 p-4 bg-cyan-500/10 rounded-xl border border-cyan-500/20 ml-2">
+                                <p className="text-sm text-cyan-200 flex gap-2">
+                                    <span className="text-lg">💡</span>
+                                    <span>
+                                        <strong>Connection:</strong> This month's goal should be the most important step towards your Annual Goal.
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Weekly Goals - Multi-Goal System */}
+                        <div className="glass rounded-2xl p-8 border border-teal-500/30 bg-teal-500/5 hover:bg-teal-500/10 transition-colors group">
+                            <div className="mb-6">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-teal-500/20 text-teal-300 font-mono text-sm border border-teal-500/30">
+                                        5
+                                    </span>
+                                    <h3 className="text-xl font-bold text-white tracking-wide">
+                                        Weekly Goals
+                                    </h3>
+                                </div>
+                                <p className="text-base text-slate-300 italic mb-2 ml-11">
+                                    "What are my most important outcomes this week?"
+                                </p>
+                            </div>
+
+                            <div className="space-y-4 ml-2">
+                                {goals.weeklyGoals.map((weeklyGoal, index) => {
+                                    const isTheOne = goals.weeklyOneThingIndex === index;
+                                    return (
+                                        <div key={index} className={`relative flex items-start p-4 rounded-xl border transition-all duration-300 ${isTheOne ? 'border-teal-500 bg-teal-500/10 shadow-[0_0_15px_rgba(20,184,166,0.15)]' : 'border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50'
+                                            }`}>
+                                            <div className="mr-4 mt-3">
+                                                <input
+                                                    type="radio"
+                                                    name={`weekly-one-thing-${selectedLifeArea}`}
+                                                    checked={isTheOne}
+                                                    onChange={() => setWeeklyOneThing(selectedLifeArea, index)}
+                                                    className="w-5 h-5 text-teal-500 focus:ring-teal-500 focus:ring-offset-slate-900 bg-slate-700 border-slate-500 cursor-pointer"
+                                                    title="Select as THE weekly ONE Thing"
+                                                />
+                                            </div>
+                                            <div className="flex-1 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                                        Priority {index + 1}
+                                                    </label>
+                                                    {isTheOne && <span className="px-2 py-0.5 bg-teal-500 text-white text-[10px] uppercase font-bold tracking-wider rounded-md shadow-lg shadow-teal-500/40">The ONE Thing</span>}
+                                                </div>
+                                                <textarea
+                                                    value={weeklyGoal.text}
+                                                    onChange={(e) => updateWeeklyGoal(selectedLifeArea, index, e.target.value)}
+                                                    placeholder={`Weekly priority ${index + 1}...`}
+                                                    className="w-full px-4 py-2 bg-transparent border-0 focus:ring-0 text-white placeholder-slate-600 transition-all text-base resize-none p-0"
+                                                    rows="2"
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="mt-6 p-4 bg-teal-500/10 rounded-xl border border-teal-500/20 ml-2">
+                                <p className="text-sm text-teal-200 flex gap-2">
+                                    <span className="text-lg">💡</span>
+                                    <span>
+                                        <strong>Focus:</strong> Your weekly ONE Thing is the lever to move your Monthly Goal forward.
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Daily Goal */}
+                        <div className="glass rounded-2xl p-8 border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors group">
+                            <div className="mb-6">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-sm border border-emerald-500/30">
+                                        6
+                                    </span>
+                                    <h3 className="text-xl font-bold text-white tracking-wide">
+                                        Daily Goal (Today's ONE Thing)
+                                    </h3>
+                                </div>
+                                <p className="text-base text-slate-300 italic mb-2 ml-11">
+                                    "What's the ONE Thing I can do today to make my weekly ONE Thing easier or unnecessary?"
+                                </p>
+                            </div>
+
+                            <div className="relative ml-2">
+                                <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl blur opacity-10 group-hover:opacity-30 transition duration-500"></div>
+                                <textarea
+                                    value={goals.daily.text}
+                                    onChange={(e) => updateGoal(selectedLifeArea, 'daily', e.target.value)}
+                                    placeholder="Enter today's ONE Thing..."
+                                    className="relative w-full px-5 py-4 bg-slate-900/80 border border-slate-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-white placeholder-slate-500 transition-all text-xl leading-relaxed focus:bg-slate-900 resize-none shadow-inner"
+                                    rows="3"
+                                />
+                            </div>
+
+                            {goals.daily.updatedAt && (
+                                <p className="text-xs text-slate-500 mt-3 text-right font-mono">
+                                    Last updated: {new Date(goals.daily.updatedAt).toLocaleDateString()}
                                 </p>
                             )}
                         </div>
-                    ))}
-
-                    {/* Annual Goals (1-Year) - Multi-Goal System */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-blue-200 bg-blue-50 transition-all hover:shadow-md">
-                        <div className="mb-4">
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                3. Annual Goals (This Year)
-                            </h3>
-                            <p className="text-sm text-gray-600 italic mb-2">
-                                "What are my most important outcomes this year?"
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                List up to 5 priorities for this year in order, then select THE ONE to focus on
-                            </p>
-                        </div>
-
-                        <div className="space-y-3">
-                            {goals.annualGoals.map((annualGoal, index) => {
-                                const isTheOne = goals.annualOneThingIndex === index;
-                                return (
-                                    <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg border-2 ${
-                                        isTheOne ? 'border-blue-500 bg-blue-100' : 'border-gray-200 bg-white'
-                                    }`}>
-                                        <input
-                                            type="radio"
-                                            name={`annual-one-thing-${selectedLifeArea}`}
-                                            checked={isTheOne}
-                                            onChange={() => setAnnualOneThing(selectedLifeArea, index)}
-                                            className="mt-2 w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                                            title="Select as THE annual ONE Thing"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="flex items-center mb-1">
-                                                <label className="text-sm font-semibold text-gray-700">
-                                                    Annual Goal {index + 1}
-                                                    {isTheOne && <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">THE ONE</span>}
-                                                </label>
-                                            </div>
-                                            <textarea
-                                                value={annualGoal.text}
-                                                onChange={(e) => updateAnnualGoal(selectedLifeArea, index, e.target.value)}
-                                                placeholder={`Annual priority ${index + 1}...`}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                                                rows="2"
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-sm text-blue-900">
-                                <strong>💡 How it works:</strong> List your most important annual outcomes in priority order (up to 5).
-                                Select the radio button next to THE ONE to focus on this year. This should support your 5-year goal.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Monthly Goals - Multi-Goal System */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-cyan-200 bg-cyan-50 transition-all hover:shadow-md">
-                        <div className="mb-4">
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                4. Monthly Goals
-                            </h3>
-                            <p className="text-sm text-gray-600 italic mb-2">
-                                "What are my most important outcomes this month?"
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                List up to 5 priorities for this month in order, then select THE ONE to focus on
-                            </p>
-                        </div>
-
-                        <div className="space-y-3">
-                            {goals.monthlyGoals.map((monthlyGoal, index) => {
-                                const isTheOne = goals.monthlyOneThingIndex === index;
-                                return (
-                                    <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg border-2 ${
-                                        isTheOne ? 'border-cyan-500 bg-cyan-100' : 'border-gray-200 bg-white'
-                                    }`}>
-                                        <input
-                                            type="radio"
-                                            name={`monthly-one-thing-${selectedLifeArea}`}
-                                            checked={isTheOne}
-                                            onChange={() => setMonthlyOneThing(selectedLifeArea, index)}
-                                            className="mt-2 w-5 h-5 text-cyan-600 focus:ring-2 focus:ring-cyan-500"
-                                            title="Select as THE monthly ONE Thing"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="flex items-center mb-1">
-                                                <label className="text-sm font-semibold text-gray-700">
-                                                    Monthly Goal {index + 1}
-                                                    {isTheOne && <span className="ml-2 px-2 py-0.5 bg-cyan-600 text-white text-xs rounded-full">THE ONE</span>}
-                                                </label>
-                                            </div>
-                                            <textarea
-                                                value={monthlyGoal.text}
-                                                onChange={(e) => updateMonthlyGoal(selectedLifeArea, index, e.target.value)}
-                                                placeholder={`Monthly priority ${index + 1}...`}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"
-                                                rows="2"
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-sm text-blue-900">
-                                <strong>💡 How it works:</strong> List your most important monthly outcomes in priority order (up to 5).
-                                Select the radio button next to THE ONE to focus on this month. This should support your annual ONE Thing.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Weekly Goals - Multi-Goal System */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-teal-200 bg-teal-50 transition-all hover:shadow-md">
-                        <div className="mb-4">
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                5. Weekly Goals
-                            </h3>
-                            <p className="text-sm text-gray-600 italic mb-2">
-                                "What are my most important outcomes this week?"
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                List up to 5 priorities for this week in order, then select THE ONE to focus on
-                            </p>
-                        </div>
-
-                        <div className="space-y-3">
-                            {goals.weeklyGoals.map((weeklyGoal, index) => {
-                                const isTheOne = goals.weeklyOneThingIndex === index;
-                                return (
-                                    <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg border-2 ${
-                                        isTheOne ? 'border-teal-500 bg-teal-100' : 'border-gray-200 bg-white'
-                                    }`}>
-                                        <input
-                                            type="radio"
-                                            name={`weekly-one-thing-${selectedLifeArea}`}
-                                            checked={isTheOne}
-                                            onChange={() => setWeeklyOneThing(selectedLifeArea, index)}
-                                            className="mt-2 w-5 h-5 text-teal-600 focus:ring-2 focus:ring-teal-500"
-                                            title="Select as THE weekly ONE Thing"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="flex items-center mb-1">
-                                                <label className="text-sm font-semibold text-gray-700">
-                                                    Weekly Goal {index + 1}
-                                                    {isTheOne && <span className="ml-2 px-2 py-0.5 bg-teal-600 text-white text-xs rounded-full">THE ONE</span>}
-                                                </label>
-                                            </div>
-                                            <textarea
-                                                value={weeklyGoal.text}
-                                                onChange={(e) => updateWeeklyGoal(selectedLifeArea, index, e.target.value)}
-                                                placeholder={`Weekly priority ${index + 1}...`}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
-                                                rows="2"
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-sm text-blue-900">
-                                <strong>💡 How it works:</strong> List your most important weekly outcomes in priority order (up to 5).
-                                Select the radio button next to THE ONE to focus on this week. Your daily goal should make that weekly ONE Thing easier or unnecessary.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Daily Goal */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-green-200 bg-green-50 transition-all hover:shadow-md">
-                        <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                                <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                    6. Daily Goal (Today's ONE Thing)
-                                </h3>
-                                <p className="text-sm text-gray-600 italic mb-2">
-                                    "What's the ONE Thing I can do today to make my weekly ONE Thing easier or unnecessary?"
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                    The single action today that moves your weekly priority forward
-                                </p>
-                            </div>
-                        </div>
-
-                        <textarea
-                            value={goals.daily.text}
-                            onChange={(e) => updateGoal(selectedLifeArea, 'daily', e.target.value)}
-                            placeholder="Enter today's ONE Thing..."
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                            rows="3"
-                        />
-
-                        {goals.daily.updatedAt && (
-                            <p className="text-xs text-gray-400 mt-2">
-                                Last updated: {new Date(goals.daily.updatedAt).toLocaleDateString()}
-                            </p>
-                        )}
                     </div>
                 </div>
             );
@@ -1728,7 +2097,14 @@
         // TIME BLOCKING
         // ==========================================
         function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
-            const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
+            const [selectedDate, setSelectedDate] = useState(getLocalDateString());
             const [newBlock, setNewBlock] = useState({
                 startTime: '09:00',
                 duration: 4,
@@ -1742,6 +2118,8 @@
                     return;
                 }
 
+                // Create correct start/end times preserving the selected date
+                // Append T to ensure it is treated as local iso time
                 const start = new Date(`${selectedDate}T${newBlock.startTime}`);
                 const end = new Date(start.getTime() + newBlock.duration * 60 * 60 * 1000);
 
@@ -1759,188 +2137,218 @@
 
             const todayBlocks = timeBlocks.filter(block => block.date === selectedDate);
 
+            // Helper to parsing YYYY-MM-DD as local date for display
+            const formatDisplayDate = (dateStr) => {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const date = new Date(y, m - 1, d); // Month is 0-indexed
+                return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+            };
+
             return (
-                <div className="space-y-6 fade-in">
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Time Blocking</h2>
-                        <p className="text-gray-600">
+                <div className="space-y-8 fade-in text-white">
+                    <div className="text-center mb-10">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-white/10 mb-4 backdrop-blur-sm">
+                            <span className="text-5xl drop-shadow-lg filter">⏰</span>
+                        </div>
+                        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Time Blocking</h2>
+                        <p className="text-slate-400 text-lg">
                             Dedicate uninterrupted time blocks to your ONE Thing
                         </p>
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                        <h3 className="font-semibold text-blue-900 mb-2">The Power of Time Blocking</h3>
-                        <p className="text-blue-800 text-sm">
+                    <div className="glass rounded-2xl p-6 border border-blue-500/30 bg-blue-500/5">
+                        <h3 className="font-bold text-blue-300 mb-2 flex items-center">
+                            <span className="mr-2">⚡️</span> The Power of Time Blocking
+                        </h3>
+                        <p className="text-blue-100/80 text-sm leading-relaxed">
                             Protect time for your ONE Thing by blocking off dedicated chunks. The recommended duration is 4 hours -
                             this ensures you have the uninterrupted focus needed for extraordinary results.
                         </p>
                     </div>
 
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Select Date
-                        </label>
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Add Time Block</h3>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Life Area
-                                </label>
-                                <select
-                                    value={newBlock.lifeArea}
-                                    onChange={(e) => setNewBlock({ ...newBlock, lifeArea: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                    {activeAreas.map(areaKey => (
-                                        <option key={areaKey} value={areaKey}>
-                                            {LIFE_AREAS[areaKey].icon} {LIFE_AREAS[areaKey].name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Start Time
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-1 space-y-6">
+                            <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                                    Select Date
                                 </label>
                                 <input
-                                    type="time"
-                                    value={newBlock.startTime}
-                                    onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white transition-all text-sm"
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Duration (hours)
-                                </label>
-                                <select
-                                    value={newBlock.duration}
-                                    onChange={(e) => setNewBlock({ ...newBlock, duration: Number(e.target.value) })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                    <option value="1">1 hour</option>
-                                    <option value="2">2 hours</option>
-                                    <option value="3">3 hours</option>
-                                    <option value="4">4 hours (Recommended)</option>
-                                    <option value="5">5 hours</option>
-                                    <option value="6">6 hours</option>
-                                </select>
-                            </div>
+                            <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                                <h3 className="text-lg font-bold text-white mb-5 flex items-center">
+                                    <span className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center mr-3 text-indigo-400">+</span>
+                                    Add Block
+                                </h3>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Task
-                                </label>
-                                <input
-                                    type="text"
-                                    value={newBlock.task}
-                                    onChange={(e) => setNewBlock({ ...newBlock, task: e.target.value })}
-                                    placeholder="Your ONE Thing"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1.5 ml-1">
+                                            Life Area
+                                        </label>
+                                        <select
+                                            value={newBlock.lifeArea}
+                                            onChange={(e) => setNewBlock({ ...newBlock, lifeArea: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-slate-800/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-white text-sm"
+                                        >
+                                            {activeAreas.map(areaKey => (
+                                                <option key={areaKey} value={areaKey}>
+                                                    {LIFE_AREAS[areaKey].icon} {LIFE_AREAS[areaKey].name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-400 mb-1.5 ml-1">
+                                                Start
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={newBlock.startTime}
+                                                onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
+                                                className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-white text-sm"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-400 mb-1.5 ml-1">
+                                                Hours
+                                            </label>
+                                            <select
+                                                value={newBlock.duration}
+                                                onChange={(e) => setNewBlock({ ...newBlock, duration: Number(e.target.value) })}
+                                                className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-white text-sm"
+                                            >
+                                                {[1, 2, 3, 4, 5, 6, 7, 8].map(h => (
+                                                    <option key={h} value={h}>{h} hr{h > 1 ? 's' : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1.5 ml-1">
+                                            Task (The ONE Thing)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newBlock.task}
+                                            onChange={(e) => setNewBlock({ ...newBlock, task: e.target.value })}
+                                            placeholder="What will you focus on?"
+                                            className="w-full px-4 py-2.5 bg-slate-800/80 border border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-white text-sm placeholder-slate-500"
+                                        />
+                                    </div>
+
+                                    {activeAreas.length > 0 && (
+                                        <div className="pt-2">
+                                            <span className="text-xs text-slate-500 mb-2 block ml-1">Quick fill from goals:</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {activeAreas.map(areaKey => {
+                                                    const dailyGoal = lifeAreas[areaKey].goals.daily.text;
+                                                    if (dailyGoal) {
+                                                        return (
+                                                            <button
+                                                                key={areaKey}
+                                                                onClick={() => setNewBlock({ ...newBlock, task: dailyGoal, lifeArea: areaKey })}
+                                                                className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-slate-300 truncate max-w-full transition-colors flex items-center"
+                                                                title={dailyGoal}
+                                                            >
+                                                                <span className="mr-1">{LIFE_AREAS[areaKey].icon}</span>
+                                                                {dailyGoal.substring(0, 15)}{dailyGoal.length > 15 ? '...' : ''}
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={handleAddBlock}
+                                        className="w-full px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/30 mt-2"
+                                    >
+                                        Schedule Block
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        {activeAreas.length > 0 && (
-                            <div className="mb-4 flex flex-wrap gap-2">
-                                <span className="text-sm text-gray-600">Quick fill:</span>
-                                {activeAreas.map(areaKey => {
-                                    const dailyGoal = lifeAreas[areaKey].goals.daily.text;
-                                    if (dailyGoal) {
-                                        return (
-                                            <button
-                                                key={areaKey}
-                                                onClick={() => setNewBlock({ ...newBlock, task: dailyGoal, lifeArea: areaKey })}
-                                                className="text-sm px-3 py-1 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
-                                            >
-                                                {LIFE_AREAS[areaKey].icon} {dailyGoal.substring(0, 30)}{dailyGoal.length > 30 ? '...' : ''}
-                                            </button>
-                                        );
-                                    }
-                                    return null;
-                                })}
-                            </div>
-                        )}
+                        <div className="md:col-span-2">
+                            <div className="glass rounded-2xl p-6 border border-slate-700/50 min-h-[500px]">
+                                <h3 className="text-xl font-bold text-white mb-6 flex items-center justify-between">
+                                    <span>Schedule &nbsp;<span className="text-slate-500 font-normal text-base">
+                                        {formatDisplayDate(selectedDate)}
+                                    </span></span>
+                                    {todayBlocks.length > 0 && <span className="text-xs font-normal px-2 py-1 bg-slate-800 rounded-lg text-slate-400">{todayBlocks.length} blocks</span>}
+                                </h3>
 
-                        <button
-                            onClick={handleAddBlock}
-                            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                        >
-                            Add Time Block
-                        </button>
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">
-                            Schedule for {new Date(selectedDate).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                month: 'long',
-                                day: 'numeric'
-                            })}
-                        </h3>
-
-                        {todayBlocks.length === 0 ? (
-                            <p className="text-gray-400 text-center py-8">
-                                No time blocks scheduled for this day
-                            </p>
-                        ) : (
-                            <div className="space-y-3">
-                                {todayBlocks.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(block => {
-                                    const areaInfo = LIFE_AREAS[block.lifeArea] || LIFE_AREAS.business;
-                                    return (
-                                        <div
-                                            key={block.id}
-                                            className={`time-block p-4 ${block.completed ? 'filled' : ''}`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center space-x-3">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={block.completed}
-                                                            onChange={(e) => updateTimeBlock(block.id, { completed: e.target.checked })}
-                                                            className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                                                        />
+                                {todayBlocks.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl">
+                                        <span className="text-4xl mb-3 opacity-50">📅</span>
+                                        <p className="text-center">No time blocks scheduled for this day.</p>
+                                        <p className="text-sm opacity-60">"If it's not on your calendar, it doesn't exist."</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {todayBlocks.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(block => {
+                                            const areaInfo = LIFE_AREAS[block.lifeArea] || LIFE_AREAS.business;
+                                            return (
+                                                <div
+                                                    key={block.id}
+                                                    className={`time-block p-5 rounded-xl border transition-all duration-300 group ${block.completed
+                                                        ? 'bg-slate-900/40 border-slate-800 opacity-60'
+                                                        : 'glass hover:bg-white/5 border-slate-600/50 hover:border-slate-500 hover:shadow-lg hover:shadow-indigo-500/10'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-start justify-between">
                                                         <div className="flex-1">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <span className="text-lg">{areaInfo.icon}</span>
-                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                                                    {areaInfo.name}
-                                                                </span>
+                                                            <div className="flex items-start space-x-4">
+                                                                <div className="mt-1">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={block.completed}
+                                                                        onChange={(e) => updateTimeBlock(block.id, { completed: e.target.checked })}
+                                                                        className="w-6 h-6 text-emerald-500 rounded-md focus:ring-emerald-500 focus:ring-offset-slate-900 bg-slate-700 border-slate-500 cursor-pointer transition-all"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="text-sm px-2 py-0.5 bg-slate-800/80 text-slate-300 rounded text-xs font-mono border border-slate-700">
+                                                                            {block.startTime} - {block.endTime}
+                                                                        </span>
+                                                                        <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border border-slate-700 bg-${areaInfo.color}-500/10 text-${areaInfo.color}-300`}>
+                                                                            {areaInfo.icon} {areaInfo.name}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className={`text-lg font-medium transition-all ${block.completed ? 'line-through text-slate-500' : 'text-white'}`}>
+                                                                        {block.task}
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                            <p className={`font-semibold ${block.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                                                                {block.task}
-                                                            </p>
-                                                            <p className="text-sm text-gray-500">
-                                                                {block.startTime} - {block.endTime}
-                                                            </p>
                                                         </div>
+                                                        <button
+                                                            onClick={() => deleteTimeBlock(block.id)}
+                                                            className="text-slate-600 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                                                            title="Delete Block"
+                                                        >
+                                                            🗑️
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <button
-                                                    onClick={() => deleteTimeBlock(block.id)}
-                                                    className="text-red-600 hover:text-red-700 px-3 py-1 text-sm"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             );
@@ -1950,6 +2358,12 @@
         // PROGRESS TRACKER
         // ==========================================
         function ProgressTracker({ lifeAreas, activeAreas }) {
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = (dateObj = new Date()) => {
+                const offset = dateObj.getTimezoneOffset() * 60000;
+                return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+            };
+
             // Aggregate completions from all active life areas
             const allCompletions = [];
             Object.keys(lifeAreas).forEach(areaKey => {
@@ -1963,11 +2377,13 @@
                 }
             });
 
-            const today = new Date();
+            // Use local date for 'today'
+            const todayStr = getLocalDateString();
+
             const last30Days = Array.from({ length: 30 }, (_, i) => {
-                const date = new Date(today);
+                const date = new Date();
                 date.setDate(date.getDate() - (29 - i));
-                return date.toISOString().split('T')[0];
+                return getLocalDateString(date);
             });
 
             const completionMap = allCompletions.reduce((acc, comp) => {
@@ -1980,9 +2396,9 @@
 
             let currentStreak = 0;
             for (let i = 0; i < 30; i++) {
-                const date = new Date(today);
+                const date = new Date();
                 date.setDate(date.getDate() - i);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = getLocalDateString(date);
                 if (completionMap[dateStr]) {
                     currentStreak++;
                 } else {
@@ -1991,98 +2407,114 @@
             }
 
             return (
-                <div className="space-y-6 fade-in">
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Progress & Statistics</h2>
-                        <p className="text-gray-600">
+                <div className="space-y-8 fade-in text-white">
+                    <div className="text-center mb-10">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-white/10 mb-4 backdrop-blur-sm">
+                            <span className="text-5xl drop-shadow-lg filter">📈</span>
+                        </div>
+                        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Progress & Statistics</h2>
+                        <p className="text-slate-400 text-lg">
                             Track your consistency and celebrate your wins
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
-                            <div className="text-4xl font-bold text-blue-600 mb-2">
+                        <div className="glass rounded-2xl p-6 border border-blue-500/30 bg-blue-500/5 text-center group hover:bg-blue-500/10 transition-colors">
+                            <div className="text-5xl font-bold text-blue-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]">
                                 {currentStreak}
                             </div>
-                            <div className="text-gray-600 font-medium">Day Streak</div>
-                            <div className="text-sm text-gray-400 mt-1">Current consecutive days</div>
+                            <div className="text-blue-200 font-bold uppercase tracking-wider text-sm">Day Streak</div>
+                            <div className="text-blue-300/60 text-xs mt-1">Current consecutive days</div>
                         </div>
 
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
-                            <div className="text-4xl font-bold text-green-600 mb-2">
+                        <div className="glass rounded-2xl p-6 border border-emerald-500/30 bg-emerald-500/5 text-center group hover:bg-emerald-500/10 transition-colors">
+                            <div className="text-5xl font-bold text-emerald-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]">
                                 {completedDays}
                             </div>
-                            <div className="text-gray-600 font-medium">Completed Days</div>
-                            <div className="text-sm text-gray-400 mt-1">Last 30 days</div>
+                            <div className="text-emerald-200 font-bold uppercase tracking-wider text-sm">Completed Days</div>
+                            <div className="text-emerald-300/60 text-xs mt-1">Last 30 days</div>
                         </div>
 
-                        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center">
-                            <div className="text-4xl font-bold text-purple-600 mb-2">
+                        <div className="glass rounded-2xl p-6 border border-purple-500/30 bg-purple-500/5 text-center group hover:bg-purple-500/10 transition-colors">
+                            <div className="text-5xl font-bold text-purple-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">
                                 {completionRate}%
                             </div>
-                            <div className="text-gray-600 font-medium">Completion Rate</div>
-                            <div className="text-sm text-gray-400 mt-1">Last 30 days</div>
+                            <div className="text-purple-200 font-bold uppercase tracking-wider text-sm">Completion Rate</div>
+                            <div className="text-purple-300/60 text-xs mt-1">Last 30 days</div>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Last 30 Days</h3>
-                        <div className="grid grid-cols-10 gap-2">
-                            {last30Days.map(date => {
+                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                            Last 30 Days
+                        </h3>
+                        <div className="grid grid-cols-10 gap-3">
+                            {last30Days.map((date, i) => {
                                 const isCompleted = completionMap[date];
-                                const dateObj = new Date(date);
-                                const isToday = date === today.toISOString().split('T')[0];
+                                const [y, m, d] = date.split('-').map(Number);
+                                const dateObj = new Date(y, m - 1, d);
+                                const isToday = date === todayStr;
 
                                 return (
                                     <div
                                         key={date}
-                                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${
-                                            isCompleted
-                                                ? 'bg-green-500 text-white'
-                                                : isToday
-                                                ? 'bg-blue-100 border-2 border-blue-500'
-                                                : 'bg-gray-100'
-                                        }`}
+                                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition-all duration-300 relative group cursor-default ${isCompleted
+                                            ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)] scale-105 z-10'
+                                            : isToday
+                                                ? 'bg-slate-800 border-2 border-indigo-500 text-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.3)]'
+                                                : 'bg-slate-800/50 text-slate-600 hover:bg-slate-800 hover:text-slate-400'
+                                            }`}
                                         title={dateObj.toLocaleDateString()}
+                                        style={{ transitionDelay: `${i * 10}ms` }}
                                     >
-                                        <div className="font-semibold">{dateObj.getDate()}</div>
+                                        <div className="font-bold">{dateObj.getDate()}</div>
+                                        {isCompleted && (
+                                            <div className="absolute inset-0 bg-emerald-400 rounded-lg blur opacity-20"></div>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Completions</h3>
+                    <div className="glass rounded-2xl p-8 border border-slate-700/50 min-h-[400px]">
+                        <h3 className="text-xl font-bold text-white mb-6">Recent Completions</h3>
                         {allCompletions.length === 0 ? (
-                            <p className="text-gray-400 text-center py-8">
-                                No completions yet. Start by setting and completing your daily ONE Thing!
-                            </p>
+                            <div className="flex flex-col items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl">
+                                <span className="text-4xl mb-3 opacity-50">🏆</span>
+                                <p className="text-center">No completions yet.</p>
+                                <p className="text-sm opacity-60">Start by setting and completing your daily ONE Thing!</p>
+                            </div>
                         ) : (
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {allCompletions
                                     .slice()
                                     .sort((a, b) => new Date(b.date) - new Date(a.date))
                                     .slice(0, 10)
                                     .map((completion, index) => {
                                         const areaInfo = LIFE_AREAS[completion.lifeArea];
+                                        const [y, m, d] = completion.date.split('-').map(Number);
+                                        const dateObj = new Date(y, m - 1, d);
                                         return (
                                             <div
                                                 key={index}
-                                                className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
+                                                className="flex items-center space-x-4 p-4 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-all hover:scale-[1.01] group"
                                             >
-                                                <div className="text-green-500 text-xl">✓</div>
+                                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)] group-hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all">
+                                                    ✓
+                                                </div>
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-lg">{areaInfo.icon}</span>
-                                                        <span className={`text-xs px-2 py-0.5 rounded-full bg-${areaInfo.color}-100 text-${areaInfo.color}-700 font-medium`}>
+                                                        <span className="text-lg filter drop-shadow">{areaInfo.icon}</span>
+                                                        <span className={`text-xs px-2 py-0.5 rounded-full border border-slate-700 bg-${areaInfo.color}-500/10 text-${areaInfo.color}-300 font-mono uppercase tracking-wide`}>
                                                             {areaInfo.name}
                                                         </span>
                                                     </div>
-                                                    <p className="font-medium text-gray-900">{completion.goal}</p>
-                                                    <p className="text-sm text-gray-500">
-                                                        {new Date(completion.date).toLocaleDateString('en-US', {
+                                                    <p className="font-medium text-white group-hover:text-indigo-200 transition-colors">{completion.goal}</p>
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        {dateObj.toLocaleDateString('en-US', {
                                                             weekday: 'long',
+                                                            year: 'numeric',
                                                             month: 'long',
                                                             day: 'numeric'
                                                         })}
@@ -2090,8 +2522,7 @@
                                                 </div>
                                             </div>
                                         );
-                                    })
-                                }
+                                    })}
                             </div>
                         )}
                     </div>
@@ -2112,66 +2543,81 @@
             };
 
             return (
-                <div className="space-y-6 fade-in">
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Settings</h2>
-                        <p className="text-gray-600">
+                <div className="space-y-8 fade-in text-white">
+                    <div className="text-center mb-10">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-600/20 to-slate-500/20 border border-white/10 mb-4 backdrop-blur-sm">
+                            <span className="text-5xl drop-shadow-lg filter">⚙️</span>
+                        </div>
+                        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Settings</h2>
+                        <p className="text-slate-400 text-lg">
                             Manage your data and preferences
                         </p>
                     </div>
 
                     {user && (
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-                            <h3 className="font-semibold text-green-900 mb-2">✓ Cloud Sync Enabled</h3>
-                            <p className="text-green-800 text-sm mb-2">
+                        <div className="glass rounded-2xl p-6 border border-emerald-500/30 bg-emerald-500/5">
+                            <h3 className="font-bold text-emerald-300 mb-2 flex items-center">
+                                <span className="mr-2">✓</span> Cloud Sync Enabled
+                            </h3>
+                            <p className="text-emerald-100/80 text-sm mb-2">
                                 Your data is automatically syncing across all your devices in real-time.
                             </p>
-                            <p className="text-green-700 text-xs">
+                            <p className="text-emerald-400 text-xs font-mono bg-emerald-900/30 inline-block px-2 py-1 rounded">
                                 Logged in as: {user.email}
                             </p>
                         </div>
                     )}
 
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Export Data</h3>
-                        <p className="text-gray-600 mb-4">
-                            Download a backup of all your goals, time blocks, and progress data.
-                        </p>
-                        <button
-                            onClick={exportData}
-                            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                        >
-                            Download Backup
-                        </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-blue-500/30 transition-colors group">
+                            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-2xl mb-4 text-blue-400 group-hover:scale-110 transition-transform">
+                                📤
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">Export Data</h3>
+                            <p className="text-slate-400 text-sm mb-6 min-h-[40px]">
+                                Download a backup of all your goals, time blocks, and progress data.
+                            </p>
+                            <button
+                                onClick={exportData}
+                                className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+                            >
+                                <span>Download Backup</span>
+                            </button>
+                        </div>
+
+                        <div className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-purple-500/30 transition-colors group">
+                            <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-2xl mb-4 text-purple-400 group-hover:scale-110 transition-transform">
+                                📥
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">Import Data</h3>
+                            <p className="text-slate-400 text-sm mb-6 min-h-[40px]">
+                                Restore your data from a previously exported backup file.
+                            </p>
+                            <div className="relative">
+                                <input
+                                    type="file"
+                                    accept=".json"
+                                    onChange={handleImport}
+                                    className="block w-full text-sm text-slate-400
+                                        file:mr-4 file:py-3 file:px-6
+                                        file:rounded-xl file:border-0
+                                        file:text-sm file:font-bold
+                                        file:bg-purple-600 file:text-white
+                                        hover:file:bg-purple-500
+                                        cursor-pointer file:cursor-pointer file:transition-colors file:shadow-lg file:shadow-purple-500/30"
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Import Data</h3>
-                        <p className="text-gray-600 mb-4">
-                            Restore your data from a previously exported backup file.
-                        </p>
-                        <input
-                            type="file"
-                            accept=".json"
-                            onChange={handleImport}
-                            className="block w-full text-sm text-gray-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-lg file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-blue-50 file:text-blue-700
-                                hover:file:bg-blue-100
-                                cursor-pointer"
-                        />
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">About</h3>
-                        <p className="text-gray-600 mb-4">
+                    <div className="glass rounded-2xl p-8 border border-slate-700/50 text-center">
+                        <h3 className="text-xl font-bold text-white mb-4">About</h3>
+                        <p className="text-slate-400 mb-6 max-w-2xl mx-auto leading-relaxed">
                             This app is based on "The ONE Thing" by Gary Keller and Jay Papasan.
                             It helps you identify and focus on the single most important task that
                             will make everything else easier or unnecessary.
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-xs text-slate-600 font-mono">
                             {user ?
                                 'Your data is securely stored in the cloud and synced across all your devices.' :
                                 'All data is stored locally in your browser. No information is sent to any server.'
@@ -2186,4 +2632,5 @@
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
+
 </html>
