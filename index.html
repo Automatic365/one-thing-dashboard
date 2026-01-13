@@ -1197,42 +1197,63 @@
                                         )}
 
                                         {/* Daily ONE Thing */}
-                                        {area.goals.daily.text ? (
+                                        {isCompleted ? (
+                                            // Completed today - show as done
                                             <div className="space-y-4">
                                                 <div className="flex items-center mb-1">
                                                     <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
                                                 </div>
 
-                                                <div className={`text-3xl font-bold ${
-                                                    isCompleted ? 'text-green-600' : 'text-blue-600'
-                                                }`}>
-                                                    {isCompleted ? '✓' : '1'}
+                                                <div className="text-3xl font-bold text-green-600">
+                                                    ✓
                                                 </div>
 
-                                                <p className={`text-lg font-medium ${
-                                                    isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'
-                                                }`}>
+                                                <p className="text-lg font-medium text-gray-400 line-through">
                                                     {area.goals.daily.text}
                                                 </p>
 
-                                                {!isCompleted && (
-                                                    <button
-                                                        onClick={() => completeDaily(areaKey)}
-                                                        className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
-                                                    >
-                                                        Complete
-                                                    </button>
-                                                )}
+                                                <p className="text-green-600 font-semibold text-sm">
+                                                    Completed today! ✓
+                                                </p>
+                                            </div>
+                                        ) : area.goals.daily.text ? (
+                                            // Has a goal but not completed today - show as in progress
+                                            <div className="space-y-4">
+                                                <div className="flex items-center mb-1">
+                                                    <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
+                                                </div>
 
-                                                {isCompleted && (
-                                                    <p className="text-green-600 font-semibold text-sm">
-                                                        Completed! ✓
-                                                    </p>
-                                                )}
+                                                <div className="text-3xl font-bold text-blue-600">
+                                                    1
+                                                </div>
+
+                                                <p className="text-lg font-medium text-gray-900">
+                                                    {area.goals.daily.text}
+                                                </p>
+
+                                                <button
+                                                    onClick={() => completeDaily(areaKey)}
+                                                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
+                                                >
+                                                    Complete
+                                                </button>
+
+                                                <p className="text-xs text-gray-500 text-center">
+                                                    Update your goal in the Goals tab if needed
+                                                </p>
                                             </div>
                                         ) : (
-                                            <div className="text-gray-400 italic text-sm">
-                                                No ONE Thing set for today
+                                            // No goal set
+                                            <div className="space-y-3">
+                                                <div className="flex items-center mb-1">
+                                                    <span className="text-xs font-semibold text-gray-500 uppercase">Today's ONE Thing</span>
+                                                </div>
+                                                <p className="text-gray-600 font-medium">
+                                                    What is today's ONE Thing?
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    Go to the Goals tab to set your daily goal
+                                                </p>
                                             </div>
                                         )}
                                     </div>
