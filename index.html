@@ -197,21 +197,38 @@
         const createEmptyGoals = () => ({
             someday: { text: '', updatedAt: null },
             fiveYear: { text: '', updatedAt: null },
-            oneYear: { text: '', updatedAt: null },
-            monthly: { text: '', updatedAt: null },
-            // 4-1-1 System: 4 weekly goals, 1 is THE ONE
-            weeklyGoals: [
+            // Annual (1-Year) - up to 5 goals in priority order
+            annualGoals: [
+                { text: '', updatedAt: null },
                 { text: '', updatedAt: null },
                 { text: '', updatedAt: null },
                 { text: '', updatedAt: null },
                 { text: '', updatedAt: null }
             ],
-            weeklyOneThingIndex: 0, // Which of the 4 is THE weekly ONE Thing (0-3)
+            annualOneThingIndex: 0, // Which of the 5 is THE ONE (0-4)
+            // Monthly - up to 5 goals in priority order
+            monthlyGoals: [
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null }
+            ],
+            monthlyOneThingIndex: 0, // Which of the 5 is THE ONE (0-4)
+            // Weekly - up to 5 goals in priority order
+            weeklyGoals: [
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null },
+                { text: '', updatedAt: null }
+            ],
+            weeklyOneThingIndex: 0, // Which of the 5 is THE ONE (0-4)
             daily: { text: '', updatedAt: null }
         });
 
         const getInitialState = () => ({
-            version: 4, // Track data version for migrations (v4 = proper 4-1-1 system)
+            version: 5, // Track data version for migrations (v5 = 5 goals per timeframe with selection)
             lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
                 acc[key] = {
                     active: false,
@@ -227,10 +244,56 @@
             lastAnnualReview: null   // ISO date of last annual review
         });
 
-        // Migrate old data format to new 4-1-1 format
+        // Migrate old data format to new multi-goal format
         const migrateData = (oldData) => {
-            // If already version 4, no migration needed
-            if (oldData.version === 4) return oldData;
+            // If already version 5, no migration needed
+            if (oldData.version === 5) return oldData;
+
+            // Version 4 → 5: Convert to 5 goals per timeframe with selection
+            if (oldData.version === 4) {
+                const newData = { ...oldData, version: 5 };
+                Object.keys(newData.lifeAreas).forEach(areaKey => {
+                    const goals = newData.lifeAreas[areaKey].goals;
+
+                    // Convert oneYear to annualGoals (5 goals, first one has old text)
+                    const annualGoals = [
+                        { text: goals.oneYear?.text || '', updatedAt: goals.oneYear?.updatedAt || null },
+                        { text: '', updatedAt: null },
+                        { text: '', updatedAt: null },
+                        { text: '', updatedAt: null },
+                        { text: '', updatedAt: null }
+                    ];
+
+                    // Convert monthly to monthlyGoals (5 goals, first one has old text)
+                    const monthlyGoals = [
+                        { text: goals.monthly?.text || '', updatedAt: goals.monthly?.updatedAt || null },
+                        { text: '', updatedAt: null },
+                        { text: '', updatedAt: null },
+                        { text: '', updatedAt: null },
+                        { text: '', updatedAt: null }
+                    ];
+
+                    // Convert weeklyGoals from 4 to 5 goals (add empty 5th slot)
+                    const weeklyGoals = [
+                        ...(goals.weeklyGoals || []),
+                        { text: '', updatedAt: null }
+                    ];
+
+                    // Update goals structure
+                    newData.lifeAreas[areaKey].goals = {
+                        someday: goals.someday,
+                        fiveYear: goals.fiveYear,
+                        annualGoals,
+                        annualOneThingIndex: 0,
+                        monthlyGoals,
+                        monthlyOneThingIndex: 0,
+                        weeklyGoals,
+                        weeklyOneThingIndex: goals.weeklyOneThingIndex || 0,
+                        daily: goals.daily
+                    };
+                });
+                return newData;
+            }
 
             // Helper function to convert single weekly goal to 4-1-1 structure
             const convertWeeklyTo411 = (goals) => {
@@ -252,30 +315,32 @@
                 return newGoals;
             };
 
-            // Version 3 → 4: Convert weekly goals to 4-1-1 for each life area
+            // Version 3 → 5: Convert weekly goals to 4-1-1 then to 5-goal system
             if (oldData.version === 3) {
-                const newData = { ...oldData, version: 4 };
-                Object.keys(newData.lifeAreas).forEach(areaKey => {
-                    newData.lifeAreas[areaKey].goals = convertWeeklyTo411(newData.lifeAreas[areaKey].goals);
+                const v4Data = { ...oldData, version: 4 };
+                Object.keys(v4Data.lifeAreas).forEach(areaKey => {
+                    v4Data.lifeAreas[areaKey].goals = convertWeeklyTo411(v4Data.lifeAreas[areaKey].goals);
                 });
-                return newData;
+                // Now convert v4 to v5
+                return migrateData(v4Data);
             }
 
-            // Version 2 → 4: Add time blocking fields + convert to 4-1-1
+            // Version 2 → 5: Add time blocking fields + convert to 4-1-1 then to 5-goal system
             if (oldData.version === 2) {
-                const newData = {
+                const v4Data = {
                     ...oldData,
                     version: 4,
                     lastWeeklyReview: null,
                     lastAnnualReview: null
                 };
-                Object.keys(newData.lifeAreas).forEach(areaKey => {
-                    newData.lifeAreas[areaKey].goals = convertWeeklyTo411(newData.lifeAreas[areaKey].goals);
+                Object.keys(v4Data.lifeAreas).forEach(areaKey => {
+                    v4Data.lifeAreas[areaKey].goals = convertWeeklyTo411(v4Data.lifeAreas[areaKey].goals);
                 });
-                return newData;
+                // Now convert v4 to v5
+                return migrateData(v4Data);
             }
 
-            // Version 1 → 4: Full migration (single track to multi-track + 4-1-1)
+            // Version 1 → 5: Full migration (single track to multi-track + 4-1-1 + 5-goal system)
             const newState = getInitialState();
 
             // If old data has goals, migrate them to "business" area
@@ -431,7 +496,87 @@
                 saveState(newState);
             };
 
-            // Update one of the 4 weekly goals (4-1-1 system)
+            // Update annual goal at specific index
+            const updateAnnualGoal = (areaKey, index, text) => {
+                const goals = state.lifeAreas[areaKey].goals;
+                const updatedAnnualGoals = [...goals.annualGoals];
+                updatedAnnualGoals[index] = { text, updatedAt: new Date().toISOString() };
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...goals,
+                                annualGoals: updatedAnnualGoals
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Set which of the 5 annual goals is THE annual ONE Thing
+            const setAnnualOneThing = (areaKey, index) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                annualOneThingIndex: index
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Update monthly goal at specific index
+            const updateMonthlyGoal = (areaKey, index, text) => {
+                const goals = state.lifeAreas[areaKey].goals;
+                const updatedMonthlyGoals = [...goals.monthlyGoals];
+                updatedMonthlyGoals[index] = { text, updatedAt: new Date().toISOString() };
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...goals,
+                                monthlyGoals: updatedMonthlyGoals
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Set which of the 5 monthly goals is THE monthly ONE Thing
+            const setMonthlyOneThing = (areaKey, index) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                monthlyOneThingIndex: index
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Update weekly goal at specific index
             const updateWeeklyGoal = (areaKey, index, text) => {
                 const goals = state.lifeAreas[areaKey].goals;
                 const updatedWeeklyGoals = [...goals.weeklyGoals];
@@ -453,7 +598,7 @@
                 saveState(newState);
             };
 
-            // Set which of the 4 weekly goals is THE weekly ONE Thing
+            // Set which of the 5 weekly goals is THE weekly ONE Thing
             const setWeeklyOneThing = (areaKey, index) => {
                 const newState = {
                     ...state,
@@ -1015,7 +1160,31 @@
                                             </button>
                                         </div>
 
-                                        {/* Weekly ONE Thing (from 4-1-1) */}
+                                        {/* Annual ONE Thing */}
+                                        {area.goals.annualGoals && area.goals.annualGoals[area.goals.annualOneThingIndex]?.text && (
+                                            <div className="mb-3 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                                                <div className="flex items-center mb-1">
+                                                    <span className="text-xs font-semibold text-blue-700 uppercase">Annual ONE Thing</span>
+                                                </div>
+                                                <p className="text-sm text-blue-900">
+                                                    {area.goals.annualGoals[area.goals.annualOneThingIndex].text}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Monthly ONE Thing */}
+                                        {area.goals.monthlyGoals && area.goals.monthlyGoals[area.goals.monthlyOneThingIndex]?.text && (
+                                            <div className="mb-3 p-2.5 bg-cyan-50 border border-cyan-200 rounded-lg">
+                                                <div className="flex items-center mb-1">
+                                                    <span className="text-xs font-semibold text-cyan-700 uppercase">Monthly ONE Thing</span>
+                                                </div>
+                                                <p className="text-sm text-cyan-900">
+                                                    {area.goals.monthlyGoals[area.goals.monthlyOneThingIndex].text}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Weekly ONE Thing */}
                                         {area.goals.weeklyGoals && area.goals.weeklyGoals[area.goals.weeklyOneThingIndex]?.text && (
                                             <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
                                                 <div className="flex items-center mb-1">
@@ -1178,22 +1347,8 @@
                     question: 'What\'s the ONE Thing I can do in the next five years?',
                     description: 'Based on your Someday goal, what would make the biggest impact?',
                     color: 'indigo'
-                },
-                {
-                    key: 'oneYear',
-                    label: '1-Year Goal',
-                    question: 'What\'s the ONE Thing I can do this year?',
-                    description: 'The annual milestone that moves you toward your 5-year goal',
-                    color: 'blue'
-                },
-                {
-                    key: 'monthly',
-                    label: 'Monthly Goal',
-                    question: 'What\'s the ONE Thing I can do this month?',
-                    description: 'This month\'s priority that advances your yearly goal',
-                    color: 'cyan'
                 }
-                // Weekly goals are now handled separately with 4-1-1 system
+                // Annual, Monthly, Weekly goals are handled separately with multi-goal system
                 // Daily goal is handled separately below
             ];
 
@@ -1321,17 +1476,131 @@
                         </div>
                     ))}
 
-                    {/* 4-1-1 Weekly Goals System */}
+                    {/* Annual Goals (1-Year) - Multi-Goal System */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-blue-200 bg-blue-50 transition-all hover:shadow-md">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                3. Annual Goals (This Year)
+                            </h3>
+                            <p className="text-sm text-gray-600 italic mb-2">
+                                "What are my most important outcomes this year?"
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                List up to 5 priorities for this year in order, then select THE ONE to focus on
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            {goals.annualGoals.map((annualGoal, index) => {
+                                const isTheOne = goals.annualOneThingIndex === index;
+                                return (
+                                    <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg border-2 ${
+                                        isTheOne ? 'border-blue-500 bg-blue-100' : 'border-gray-200 bg-white'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name={`annual-one-thing-${selectedLifeArea}`}
+                                            checked={isTheOne}
+                                            onChange={() => setAnnualOneThing(selectedLifeArea, index)}
+                                            className="mt-2 w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                            title="Select as THE annual ONE Thing"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex items-center mb-1">
+                                                <label className="text-sm font-semibold text-gray-700">
+                                                    Annual Goal {index + 1}
+                                                    {isTheOne && <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">THE ONE</span>}
+                                                </label>
+                                            </div>
+                                            <textarea
+                                                value={annualGoal.text}
+                                                onChange={(e) => updateAnnualGoal(selectedLifeArea, index, e.target.value)}
+                                                placeholder={`Annual priority ${index + 1}...`}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                                rows="2"
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-sm text-blue-900">
+                                <strong>💡 How it works:</strong> List your most important annual outcomes in priority order (up to 5).
+                                Select the radio button next to THE ONE to focus on this year. This should support your 5-year goal.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Monthly Goals - Multi-Goal System */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-cyan-200 bg-cyan-50 transition-all hover:shadow-md">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                4. Monthly Goals
+                            </h3>
+                            <p className="text-sm text-gray-600 italic mb-2">
+                                "What are my most important outcomes this month?"
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                List up to 5 priorities for this month in order, then select THE ONE to focus on
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            {goals.monthlyGoals.map((monthlyGoal, index) => {
+                                const isTheOne = goals.monthlyOneThingIndex === index;
+                                return (
+                                    <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg border-2 ${
+                                        isTheOne ? 'border-cyan-500 bg-cyan-100' : 'border-gray-200 bg-white'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name={`monthly-one-thing-${selectedLifeArea}`}
+                                            checked={isTheOne}
+                                            onChange={() => setMonthlyOneThing(selectedLifeArea, index)}
+                                            className="mt-2 w-5 h-5 text-cyan-600 focus:ring-2 focus:ring-cyan-500"
+                                            title="Select as THE monthly ONE Thing"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex items-center mb-1">
+                                                <label className="text-sm font-semibold text-gray-700">
+                                                    Monthly Goal {index + 1}
+                                                    {isTheOne && <span className="ml-2 px-2 py-0.5 bg-cyan-600 text-white text-xs rounded-full">THE ONE</span>}
+                                                </label>
+                                            </div>
+                                            <textarea
+                                                value={monthlyGoal.text}
+                                                onChange={(e) => updateMonthlyGoal(selectedLifeArea, index, e.target.value)}
+                                                placeholder={`Monthly priority ${index + 1}...`}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"
+                                                rows="2"
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-sm text-blue-900">
+                                <strong>💡 How it works:</strong> List your most important monthly outcomes in priority order (up to 5).
+                                Select the radio button next to THE ONE to focus on this month. This should support your annual ONE Thing.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Weekly Goals - Multi-Goal System */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-teal-200 bg-teal-50 transition-all hover:shadow-md">
                         <div className="mb-4">
                             <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                5. Weekly Goals (4-1-1 System)
+                                5. Weekly Goals
                             </h3>
                             <p className="text-sm text-gray-600 italic mb-2">
-                                "What are the 4 most important outcomes this week?"
+                                "What are my most important outcomes this week?"
                             </p>
                             <p className="text-sm text-gray-500">
-                                List the 4 priorities for this week, then select THE ONE that matters most
+                                List up to 5 priorities for this week in order, then select THE ONE to focus on
                             </p>
                         </div>
 
@@ -1372,8 +1641,8 @@
 
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <p className="text-sm text-blue-900">
-                                <strong>💡 How 4-1-1 works:</strong> List your 4 most important weekly outcomes.
-                                Select the radio button next to THE ONE that matters most. Your daily goal should make that weekly ONE Thing easier or unnecessary.
+                                <strong>💡 How it works:</strong> List your most important weekly outcomes in priority order (up to 5).
+                                Select the radio button next to THE ONE to focus on this week. Your daily goal should make that weekly ONE Thing easier or unnecessary.
                             </p>
                         </div>
                     </div>
