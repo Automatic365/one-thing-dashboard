@@ -1445,18 +1445,28 @@
                                 </button>
                             ))}
                             {activeAreas.length < Object.keys(LIFE_AREAS).length && (
-                                <button
-                                    onClick={() => {
-                                        const inactive = Object.keys(LIFE_AREAS).find(k => !activeAreas.includes(k));
-                                        if (inactive) {
-                                            toggleLifeArea(inactive);
-                                            setSelectedLifeArea(inactive);
-                                        }
-                                    }}
-                                    className="px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-500 hover:text-blue-600"
-                                >
-                                    + Add Area
-                                </button>
+                                <details className="relative inline-block">
+                                    <summary className="px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-500 hover:text-blue-600 cursor-pointer list-none">
+                                        + Add Area
+                                    </summary>
+                                    <div className="absolute z-10 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[200px]">
+                                        {Object.keys(LIFE_AREAS)
+                                            .filter(k => !activeAreas.includes(k))
+                                            .map(areaKey => (
+                                                <button
+                                                    key={areaKey}
+                                                    onClick={() => {
+                                                        toggleLifeArea(areaKey);
+                                                        setSelectedLifeArea(areaKey);
+                                                    }}
+                                                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center"
+                                                >
+                                                    <span className="mr-2">{LIFE_AREAS[areaKey].icon}</span>
+                                                    {LIFE_AREAS[areaKey].name}
+                                                </button>
+                                            ))}
+                                    </div>
+                                </details>
                             )}
                         </div>
                     </div>
