@@ -495,6 +495,55 @@
         };
 
         // ==========================================
+        // DATE + COMPLETION HELPERS
+        // ==========================================
+        // Helper to get local date string YYYY-MM-DD
+        const getLocalDateString = (dateObj = new Date()) => {
+            const offset = dateObj.getTimezoneOffset() * 60000;
+            return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+        };
+
+        const completeDaily = (state, areaKey, today = getLocalDateString()) => {
+            const area = state.lifeAreas[areaKey];
+            const alreadyCompleted = area.completions.some(c => c.date === today);
+
+            if (alreadyCompleted) {
+                // Remove completion
+                return {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...area,
+                            ...state.lifeAreas[areaKey], // Sustain other props
+                            completions: area.completions.filter(c => c.date !== today)
+                        }
+                    }
+                };
+            }
+
+            if (area.goals.daily.text) {
+                // Add completion
+                return {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...area,
+                            ...state.lifeAreas[areaKey],
+                            completions: [...area.completions, {
+                                date: today,
+                                goal: area.goals.daily.text
+                            }]
+                        }
+                    }
+                };
+            }
+
+            return state;
+        };
+
+        // ==========================================
         // MAIN APP COMPONENT
         // ==========================================
         function App() {
@@ -753,48 +802,9 @@
             };
 
             // Mark daily goal as complete for a specific life area
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = () => {
-                const d = new Date();
-                const offset = d.getTimezoneOffset() * 60000;
-                return new Date(d.getTime() - offset).toISOString().split('T')[0];
-            };
-
-            const completeDaily = (areaKey) => {
-                const today = getLocalDateString();
-                const area = state.lifeAreas[areaKey];
-                const alreadyCompleted = area.completions.some(c => c.date === today);
-
-                if (alreadyCompleted) {
-                    // Remove completion
-                    const newState = {
-                        ...state,
-                        lifeAreas: {
-                            ...state.lifeAreas,
-                            [areaKey]: {
-                                ...area,
-                                ...state.lifeAreas[areaKey], // Sustain other props
-                                completions: area.completions.filter(c => c.date !== today)
-                            }
-                        }
-                    };
-                    saveState(newState);
-                } else if (area.goals.daily.text) {
-                    // Add completion
-                    const newState = {
-                        ...state,
-                        lifeAreas: {
-                            ...state.lifeAreas,
-                            [areaKey]: {
-                                ...area,
-                                ...state.lifeAreas[areaKey],
-                                completions: [...area.completions, {
-                                    date: today,
-                                    goal: area.goals.daily.text
-                                }]
-                            }
-                        }
-                    };
+            const handleCompleteDaily = (areaKey) => {
+                const newState = completeDaily(state, areaKey);
+                if (newState !== state) {
                     saveState(newState);
                 }
             };
@@ -916,7 +926,7 @@
                                     <Dashboard
                                         lifeAreas={state.lifeAreas}
                                         activeAreas={activeAreas}
-                                        completeDaily={completeDaily}
+                                        completeDaily={handleCompleteDaily}
                                         quote={QUOTES[state.currentQuoteIndex]}
                                         rotateQuote={rotateQuote}
                                         toggleLifeArea={toggleLifeArea}
@@ -986,7 +996,7 @@
                             <Dashboard
                                 lifeAreas={state.lifeAreas}
                                 activeAreas={activeAreas}
-                                completeDaily={completeDaily}
+                                completeDaily={handleCompleteDaily}
                                 quote={QUOTES[state.currentQuoteIndex]}
                                 rotateQuote={rotateQuote}
                                 toggleLifeArea={toggleLifeArea}
@@ -1247,13 +1257,6 @@
         // DASHBOARD
         // ==========================================
         function Dashboard({ lifeAreas, activeAreas, completeDaily, quote, rotateQuote, toggleLifeArea }) {
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = () => {
-                const d = new Date();
-                const offset = d.getTimezoneOffset() * 60000;
-                return new Date(d.getTime() - offset).toISOString().split('T')[0];
-            };
-
             const today = getLocalDateString();
 
             return (
@@ -1918,13 +1921,6 @@
         // TIME BLOCKING
         // ==========================================
         function TimeBlocking({ lifeAreas, activeAreas, timeBlocks, addTimeBlock, updateTimeBlock, deleteTimeBlock }) {
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = () => {
-                const d = new Date();
-                const offset = d.getTimezoneOffset() * 60000;
-                return new Date(d.getTime() - offset).toISOString().split('T')[0];
-            };
-
             const [selectedDate, setSelectedDate] = useState(getLocalDateString());
             const [newBlock, setNewBlock] = useState({
                 startTime: '09:00',
@@ -2179,12 +2175,6 @@
         // PROGRESS TRACKER
         // ==========================================
         function ProgressTracker({ lifeAreas, activeAreas }) {
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = (dateObj = new Date()) => {
-                const offset = dateObj.getTimezoneOffset() * 60000;
-                return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
-            };
-
             // Aggregate completions from all active life areas
             const allCompletions = [];
             Object.keys(lifeAreas).forEach(areaKey => {
