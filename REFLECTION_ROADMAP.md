@@ -12,13 +12,13 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 - Phase 3 reminders + dashboard/progress UX enhancements
 - Phase 4 enhanced Progress calendar + day notes + obstacles tracker
 - Phase 5.4–5.5: storage tools + progress deep dive
+- Phase 5.6: obstacles weekly focus + timeline
 
 ### ▶️ Next
 - **5.1 Reflection History** ✅ shipped (monthly/quarterly browsing + completion overview)
 - **5.2 Release Hygiene & Safety** ✅ shipped (version stamp, export-first nudges, retry guidance)
 
 ### ⏳ Later
-- 5.6 obstacles workflow upgrades (timeline linking, weekly focus)
 - 5.3 code organization + remaining 5.4/5.5 polish (only when it hurts)
 
 ## Phase 0: Platform Stability & Release Hygiene (MOSTLY COMPLETED)
@@ -274,19 +274,17 @@ These items are foundational and help prevent regressions like data wipes/revert
   - Quick preview on hover
   - Click to edit notes inline
 
-### 5.6: Obstacles Tracker Upgrades
+### 5.6: Obstacles Tracker Upgrades (COMPLETED)
 **Why prioritize**: Makes the obstacles feature more actionable and habit-forming.
 
 #### Features
 - **Timeline linking**:
-  - Link pinned obstacles to specific dates tried (lightweight timeline)
-  - Show "Tried this solution 3 times: Jan 5, Jan 12, Jan 18" with outcomes
-  - Connect to day notes (did you leave a note about trying this solution?)
+  - Link pinned obstacles to specific dates tried (lightweight timeline) ✅
+  - Show outcomes per attempt ✅
+  - Connect to day notes (view snippet + edit note inline) ✅
 - **Weekly focus workflow**:
-  - "Recommended solution this week" picker
-  - Select one obstacle-solution pair to focus on
-  - Track if you actually tried it this week
-  - Celebration when you mark it as "Worked!"
+  - Select one obstacle-solution pair to focus on ✅
+  - Track if you actually tried it this week ✅
 - **Pattern insights**:
   - "You've identified 'time management' as an obstacle 5 times across 3 life areas"
   - Suggest consolidating duplicate obstacles
@@ -373,5 +371,5 @@ Based on architecture review (Jan 14, 2026), recommended implementation order:
 
 ---
 
-**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1–5.5 shipped. Next: Phase 5.6 or 5.3.
+**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1–5.6 shipped. Next: Phase 5.3 or Phase 5.7 (optional).
 **Last Updated**: January 14, 2026
