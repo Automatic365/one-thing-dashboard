@@ -1929,31 +1929,167 @@
 	            };
 
             // Export data
-            const exportData = () => {
-                const dataStr = JSON.stringify(state, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `one-thing-backup-${getLocalDateString()}.json`;
-                link.click();
-                URL.revokeObjectURL(url);
-            };
+		            const exportData = () => {
+		                const dataStr = JSON.stringify(state, null, 2);
+		                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+		                const url = URL.createObjectURL(dataBlob);
+		                const link = document.createElement('a');
+		                link.href = url;
+		                link.download = `one-thing-backup-${getLocalDateString()}.json`;
+		                link.click();
+		                URL.revokeObjectURL(url);
+		            };
 
             // Import data
-            const importData = (file) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const imported = JSON.parse(e.target.result);
-                        saveState(imported);
-                        alert('Data imported successfully!');
-                    } catch (err) {
-                        alert('Error importing data. Please check the file format.');
-                    }
-                };
-                reader.readAsText(file);
-            };
+		            const importData = (file) => {
+		                const reader = new FileReader();
+		                reader.onload = (e) => {
+		                    try {
+		                        const imported = JSON.parse(e.target.result);
+		                        saveState(imported);
+		                        alert('Data imported successfully!');
+		                    } catch (err) {
+		                        alert('Error importing data. Please check the file format.');
+		                    }
+		                };
+		                reader.readAsText(file);
+		            };
+
+		            const storageInfo = React.useMemo(() => {
+		                const safeByteCount = (str) => {
+		                    try {
+		                        return new Blob([String(str)]).size;
+		                    } catch {
+		                        return String(str).length;
+		                    }
+		                };
+
+		                const stateStr = (() => {
+		                    try {
+		                        return JSON.stringify(state);
+		                    } catch {
+		                        return '';
+		                    }
+		                })();
+		                const stateBytes = safeByteCount(stateStr);
+
+		                const localKeys = [
+		                    'oneThingApp',
+		                    'oneThingClientId',
+		                    'oneThingAutosaveDaily',
+		                    'oneThingDismissedReviewReminders'
+		                ];
+		                const localBytesByKey = {};
+		                let localTotalBytes = 0;
+		                localKeys.forEach((k) => {
+		                    try {
+		                        const v = localStorage.getItem(k);
+		                        const bytes = v ? safeByteCount(v) : 0;
+		                        localBytesByKey[k] = bytes;
+		                        localTotalBytes += bytes;
+		                    } catch {
+		                        localBytesByKey[k] = 0;
+		                    }
+		                });
+
+		                // Browser quotas vary; use a conservative 5MB baseline for warning purposes.
+		                const quotaBytes = 5 * 1024 * 1024;
+		                const pct = quotaBytes ? Math.min(100, Math.round((localTotalBytes / quotaBytes) * 100)) : 0;
+		                const warn = localTotalBytes >= quotaBytes * 0.8;
+
+		                const fmt = (bytes) => {
+		                    if (!Number.isFinite(bytes)) return '—';
+		                    if (bytes < 1024) return `${bytes} B`;
+		                    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		                    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+		                };
+
+		                return {
+		                    stateBytes,
+		                    localTotalBytes,
+		                    localBytesByKey,
+		                    quotaBytes,
+		                    pct,
+		                    warn,
+		                    fmt
+		                };
+		            }, [state]);
+
+		            const archiveOldHistory = (months = 6) => {
+		                const monthsNum = Number(months);
+		                if (!Number.isFinite(monthsNum) || monthsNum <= 0) return;
+
+		                const now = new Date();
+		                const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		                cutoff.setMonth(cutoff.getMonth() - monthsNum);
+
+		                const cutoffStr = getLocalDateString(cutoff);
+
+		                const dateLt = (a, b) => {
+		                    // Compare YYYY-MM-DD lexicographically
+		                    return String(a) < String(b);
+		                };
+
+		                const nextLifeAreas = { ...state.lifeAreas };
+		                let removedDailyEntries = 0;
+		                Object.keys(nextLifeAreas).forEach((areaKey) => {
+		                    const area = nextLifeAreas[areaKey];
+		                    if (!area || !area.goals || !area.goals.dailyHistory) return;
+		                    const dailyHistory = area.goals.dailyHistory;
+		                    const nextDailyHistory = {};
+		                    Object.keys(dailyHistory).forEach((dateKey) => {
+		                        if (dateKey && dateLt(dateKey, cutoffStr)) {
+		                            removedDailyEntries += 1;
+		                            return;
+		                        }
+		                        nextDailyHistory[dateKey] = dailyHistory[dateKey];
+		                    });
+		                    nextLifeAreas[areaKey] = {
+		                        ...area,
+		                        goals: {
+		                            ...area.goals,
+		                            dailyHistory: nextDailyHistory
+		                        }
+		                    };
+		                });
+
+		                const nextDayNotes = {};
+		                let removedDayNotes = 0;
+		                Object.keys(state.dayNotes || {}).forEach((dateKey) => {
+		                    if (dateKey && dateLt(dateKey, cutoffStr)) {
+		                        removedDayNotes += 1;
+		                        return;
+		                    }
+		                    nextDayNotes[dateKey] = state.dayNotes[dateKey];
+		                });
+
+		                const nextTimeBlocks = Array.isArray(state.timeBlocks)
+		                    ? state.timeBlocks.filter((b) => !(b && b.date && dateLt(b.date, cutoffStr)))
+		                    : [];
+		                const removedTimeBlocks = Array.isArray(state.timeBlocks) ? (state.timeBlocks.length - nextTimeBlocks.length) : 0;
+
+		                const summary =
+		                    `This will archive history older than ${monthsNum} month(s) (before ${cutoffStr}).\n\n` +
+		                    `Removes:\n` +
+		                    `- Daily history entries: ${removedDailyEntries}\n` +
+		                    `- Day notes: ${removedDayNotes}\n` +
+		                    `- Time blocks: ${removedTimeBlocks}\n\n` +
+		                    `Tip: Export a backup first if you want a restore point.`;
+
+		                const shouldExport = window.confirm(`Recommended: export a backup before archiving.\n\nClick OK to export now, or Cancel to continue.`);
+		                if (shouldExport) exportData();
+
+		                const ok = window.confirm(summary);
+		                if (!ok) return;
+
+		                const newState = {
+		                    ...state,
+		                    lifeAreas: nextLifeAreas,
+		                    dayNotes: nextDayNotes,
+		                    timeBlocks: nextTimeBlocks
+		                };
+		                saveState(newState);
+		            };
 
             // Rotate quote
             const rotateQuote = () => {
@@ -2167,15 +2303,17 @@
 	                                    />
 	                                )}
 
-	                                {currentView === 'settings' && (
-	                                    <Settings
-	                                        exportData={exportData}
-	                                        importData={importData}
-	                                        user={null}
-	                                        loadDemoData={loadDemoData}
-	                                        clearAllData={clearAllData}
-	                                    />
-	                                )}
+		                                {currentView === 'settings' && (
+		                                    <Settings
+		                                        exportData={exportData}
+		                                        importData={importData}
+		                                        user={null}
+		                                        loadDemoData={loadDemoData}
+		                                        clearAllData={clearAllData}
+		                                        storageInfo={storageInfo}
+		                                        archiveOldHistory={archiveOldHistory}
+		                                    />
+		                                )}
                             </main>
                         </div>
                     </div>
@@ -2369,15 +2507,17 @@
 	                            />
 	                        )}
 
-	                        {currentView === 'settings' && (
-	                            <Settings
-	                                exportData={exportData}
-	                                importData={importData}
-	                                user={user}
-	                                loadDemoData={loadDemoData}
-	                                clearAllData={clearAllData}
-	                            />
-	                        )}
+		                        {currentView === 'settings' && (
+		                            <Settings
+		                                exportData={exportData}
+		                                importData={importData}
+		                                user={user}
+		                                loadDemoData={loadDemoData}
+		                                clearAllData={clearAllData}
+		                                storageInfo={storageInfo}
+		                                archiveOldHistory={archiveOldHistory}
+		                            />
+		                        )}
                     </main>
                 </div>
             );
@@ -5221,7 +5361,7 @@
 	            }, {});
 
             const completedDays = lastNDays.filter(date => completionMap[date]).length;
-            const completionRate = Math.round((completedDays / rangeDays) * 100);
+	            const completionRate = Math.round((completedDays / rangeDays) * 100);
 
             let currentStreak = 0;
             for (let i = 0; i < rangeDays; i++) {
@@ -5234,6 +5374,73 @@
                     break;
                 }
             }
+
+	            const buildSparklinePoints = (values, width = 140, height = 28, pad = 3) => {
+	                const safe = Array.isArray(values) ? values : [];
+	                if (safe.length <= 1) return '';
+	                const maxV = Math.max(1, ...safe);
+	                const minV = Math.min(0, ...safe);
+	                const range = Math.max(1e-6, maxV - minV);
+	                const innerW = width - pad * 2;
+	                const innerH = height - pad * 2;
+	                return safe
+	                    .map((v, idx) => {
+	                        const x = pad + (innerW * idx) / (safe.length - 1);
+	                        const norm = (v - minV) / range;
+	                        const y = pad + innerH - norm * innerH;
+	                        return `${x.toFixed(1)},${y.toFixed(1)}`;
+	                    })
+	                    .join(' ');
+	            };
+
+	            const dailyBinarySeries = lastNDays.map((d) => (completionMap[d] ? 1 : 0));
+	            const sparkPoints = buildSparklinePoints(dailyBinarySeries);
+
+	            const perAreaStats = activeAreas.map((areaKey) => {
+	                const area = lifeAreas[areaKey];
+	                const dailyHistory = area && area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
+	                const completed = new Set();
+	                Object.keys(dailyHistory).forEach((date) => {
+	                    const entry = dailyHistory[date];
+	                    if (entry && entry.completed) completed.add(date);
+	                });
+
+	                // Current streak (all-time), ending today
+	                let current = 0;
+	                for (let i = 0; i < 3650; i++) {
+	                    const d = new Date();
+	                    d.setDate(d.getDate() - i);
+	                    const ds = getLocalDateString(d);
+	                    if (completed.has(ds)) current++;
+	                    else break;
+	                }
+
+	                // Best streak (all-time)
+	                const dates = Array.from(completed).sort();
+	                let best = 0;
+	                let run = 0;
+	                let prev = null;
+	                dates.forEach((ds) => {
+	                    if (!prev) {
+	                        run = 1;
+	                        best = Math.max(best, run);
+	                        prev = ds;
+	                        return;
+	                    }
+	                    const prevDate = parseLocalDate(prev);
+	                    prevDate.setDate(prevDate.getDate() + 1);
+	                    const expected = getLocalDateString(prevDate);
+	                    if (ds === expected) run += 1;
+	                    else run = 1;
+	                    best = Math.max(best, run);
+	                    prev = ds;
+	                });
+
+	                const rangeCompleted = lastNDays.filter((d) => completed.has(d)).length;
+	                const rangeRate = Math.round((rangeCompleted / rangeDays) * 100);
+
+	                return { areaKey, current, best, rangeCompleted, rangeRate };
+	            });
 
 	            return (
 	                <div className="space-y-8 fade-in text-white">
@@ -5365,7 +5572,7 @@
 	                        </div>
 	                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+	                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="glass rounded-2xl p-6 border border-blue-500/30 bg-blue-500/5 text-center group hover:bg-blue-500/10 transition-colors">
                             <div className="text-5xl font-bold text-blue-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]">
                                 {currentStreak}
@@ -5382,14 +5589,64 @@
                             <div className="text-emerald-300/60 text-xs mt-1">Last {rangeDays} days</div>
                         </div>
 
-                        <div className="glass rounded-2xl p-6 border border-purple-500/30 bg-purple-500/5 text-center group hover:bg-purple-500/10 transition-colors">
-                            <div className="text-5xl font-bold text-purple-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">
-                                {completionRate}%
-                            </div>
-                            <div className="text-purple-200 font-bold uppercase tracking-wider text-sm">Completion Rate</div>
-                            <div className="text-purple-300/60 text-xs mt-1">Last {rangeDays} days</div>
-                        </div>
-                    </div>
+	                        <div className="glass rounded-2xl p-6 border border-purple-500/30 bg-purple-500/5 text-center group hover:bg-purple-500/10 transition-colors">
+	                            <div className="text-5xl font-bold text-purple-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">
+	                                {completionRate}%
+	                            </div>
+	                            <div className="text-purple-200 font-bold uppercase tracking-wider text-sm">Completion Rate</div>
+	                            <div className="text-purple-300/60 text-xs mt-1">Last {rangeDays} days</div>
+	                            {sparkPoints && (
+	                                <div className="mt-4 flex justify-center">
+	                                    <svg width="140" height="28" viewBox="0 0 140 28" className="opacity-90">
+	                                        <polyline
+	                                            points={sparkPoints}
+	                                            fill="none"
+	                                            stroke="currentColor"
+	                                            strokeWidth="2"
+	                                            className="text-purple-300"
+	                                        />
+	                                    </svg>
+	                                </div>
+	                            )}
+	                        </div>
+	                    </div>
+
+	                    {selectedAreaScope === 'all' && (
+	                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+	                            <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+	                                Per-Life-Area Streaks
+	                            </h3>
+	                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+	                                {perAreaStats.map((row) => {
+	                                    const info = LIFE_AREAS[row.areaKey] || LIFE_AREAS.business;
+	                                    return (
+	                                        <div key={row.areaKey} className="rounded-2xl border border-slate-700/60 bg-slate-800/30 p-6">
+	                                            <div className="flex items-center justify-between">
+	                                                <div className="flex items-center gap-2">
+	                                                    <span className="text-2xl">{info.icon}</span>
+	                                                    <div className="font-bold text-white">{info.name}</div>
+	                                                </div>
+	                                                <div className="text-xs font-mono text-slate-400">{row.rangeRate}% / {rangeDays}d</div>
+	                                            </div>
+	                                            <div className="mt-5 grid grid-cols-2 gap-4">
+	                                                <div className="rounded-xl border border-slate-700 bg-slate-900/30 p-4 text-center">
+	                                                    <div className="text-3xl font-black text-emerald-300">{row.current}</div>
+	                                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Current</div>
+	                                                </div>
+	                                                <div className="rounded-xl border border-slate-700 bg-slate-900/30 p-4 text-center">
+	                                                    <div className="text-3xl font-black text-indigo-300">{row.best}</div>
+	                                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Best</div>
+	                                                </div>
+	                                            </div>
+	                                            <div className="mt-4 text-xs text-slate-500">
+	                                                Completed days in range: <span className="font-mono text-slate-300">{row.rangeCompleted}</span>
+	                                            </div>
+	                                        </div>
+	                                    );
+	                                })}
+	                            </div>
+	                        </div>
+	                    )}
 
 	                    {viewMode === 'range' ? (
 	                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
@@ -5472,7 +5729,7 @@
 	                                                                ? 'bg-slate-800 border-indigo-500/50 hover:border-indigo-500'
 	                                                                : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800 hover:border-slate-600'
 	                                                    }`}
-	                                                    title={date}
+	                                                    title={`${date}\n${count} completion${count === 1 ? '' : 's'}${note ? `\nNote: ${String(note).slice(0, 80)}` : ''}`}
 	                                                >
 	                                                    <div className={`text-xs font-bold ${isToday ? 'text-indigo-300' : 'text-slate-200'}`}>
 	                                                        {Number(date.slice(-2))}
@@ -5650,7 +5907,7 @@
         // ==========================================
         // SETTINGS
         // ==========================================
-        function Settings({ exportData, importData, user, loadDemoData, clearAllData }) {
+        function Settings({ exportData, importData, user, loadDemoData, clearAllData, storageInfo, archiveOldHistory }) {
             const handleImport = (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -5659,6 +5916,8 @@
                 }
             };
 
+	            const [archiveMonths, setArchiveMonths] = React.useState(6);
+	
             return (
                 <div className="space-y-8 fade-in text-white">
                     <div className="text-center mb-10">
@@ -5726,10 +5985,75 @@
                             </div>
                         </div>
                     </div>
-	
+
 	                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
 	                        <div className="flex items-center justify-between gap-4 flex-wrap">
 	                            <div className="text-left">
+	                                <h3 className="text-xl font-bold text-white">Storage & Cleanup</h3>
+	                                <p className="text-slate-400 text-sm mt-2 max-w-2xl">
+	                                    Monitor your local storage usage and optionally archive older history to keep the app snappy.
+	                                </p>
+	                            </div>
+	                        </div>
+
+	                        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+	                            <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+	                                <div className="flex items-center justify-between">
+	                                    <div className="text-sm font-bold text-slate-200">Local storage usage</div>
+	                                    <div className={`text-xs font-mono ${storageInfo && storageInfo.warn ? 'text-rose-300' : 'text-slate-400'}`}>
+	                                        {storageInfo ? `${storageInfo.fmt(storageInfo.localTotalBytes)} (~${storageInfo.pct}% of 5MB)` : '—'}
+	                                    </div>
+	                                </div>
+	                                <div className="mt-3 h-2 rounded-full bg-slate-800 overflow-hidden border border-slate-700/60">
+	                                    <div
+	                                        className={`h-full ${storageInfo && storageInfo.warn ? 'bg-rose-500/60' : 'bg-emerald-500/60'}`}
+	                                        style={{ width: `${storageInfo ? storageInfo.pct : 0}%` }}
+	                                    />
+	                                </div>
+	                                {storageInfo && storageInfo.warn && (
+	                                    <div className="mt-3 text-xs text-rose-200">
+	                                        Approaching typical browser limits. Consider exporting and archiving older history.
+	                                    </div>
+	                                )}
+	                                {storageInfo && (
+	                                    <div className="mt-4 text-xs text-slate-500 font-mono space-y-1">
+	                                        <div>oneThingApp: {storageInfo.fmt(storageInfo.localBytesByKey.oneThingApp || 0)}</div>
+	                                        <div>clientId: {storageInfo.fmt(storageInfo.localBytesByKey.oneThingClientId || 0)}</div>
+	                                        <div>prefs: {storageInfo.fmt((storageInfo.localBytesByKey.oneThingAutosaveDaily || 0) + (storageInfo.localBytesByKey.oneThingDismissedReviewReminders || 0))}</div>
+	                                    </div>
+	                                )}
+	                            </div>
+
+	                            <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+	                                <div className="text-sm font-bold text-slate-200">Archive older history</div>
+	                                <div className="text-xs text-slate-500 mt-2">
+	                                    Archives daily history, day notes, and time blocks older than the chosen cutoff. Reviews are kept.
+	                                </div>
+	                                <div className="mt-4 flex items-center gap-3 flex-wrap">
+	                                    <select
+	                                        value={archiveMonths}
+	                                        onChange={(e) => setArchiveMonths(Number(e.target.value))}
+	                                        className="px-4 py-2.5 bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+	                                    >
+	                                        {[3, 6, 12, 24].map((m) => (
+	                                            <option key={m} value={m}>{m} months</option>
+	                                        ))}
+	                                    </select>
+	                                    <button
+	                                        type="button"
+	                                        onClick={() => typeof archiveOldHistory === 'function' && archiveOldHistory(archiveMonths)}
+	                                        className="px-5 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30 font-bold transition-all"
+	                                    >
+	                                        Archive
+	                                    </button>
+	                                </div>
+	                            </div>
+	                        </div>
+	                    </div>
+		
+                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="text-left">
 	                                <h3 className="text-xl font-bold text-white">Demo / Reset</h3>
 	                                <p className="text-slate-400 text-sm mt-2 max-w-2xl">
 	                                    Load realistic demo data to quickly test flows, or clear all data to start fresh.
