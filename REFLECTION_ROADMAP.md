@@ -13,8 +13,8 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 - Phase 4 enhanced Progress calendar + day notes + obstacles tracker
 
 ### ▶️ Next
-- **5.2 Release Hygiene & Safety** (version stamp, export-first nudges, simple retry guidance)
 - **5.1 Reflection History** (browse monthly/quarterly history + completion overview)
+- **5.2 Release Hygiene & Safety** ✅ shipped (version stamp, export-first nudges, retry guidance)
 
 ### ⏳ Later
 - 5.5 deeper progress analytics (streaks, trends, richer day detail polish)
@@ -175,6 +175,11 @@ These items are foundational and help prevent regressions like data wipes/revert
 ### 5.2: Release Hygiene & Safety
 **Why prioritize**: Builds user trust and prevents data loss incidents as user base grows.
 
+#### Status
+- ✅ Build/version stamp shipped (Settings → About)
+- ✅ Export-first nudges shipped (before destructive cloud overwrites)
+- ✅ Retry guidance + `Retry Save` shipped on sync error banner
+
 #### Features
 - **Build/version stamp**:
   - Add visible version number in Settings/About (e.g., "v1.7.2 - Jan 14, 2026")
@@ -186,7 +191,7 @@ These items are foundational and help prevent regressions like data wipes/revert
   - Prevents accidental data loss
 - **Sync diagnostics expansion**:
   - Add "View sync log" (last 10 sync events with timestamps)
-  - Retry guidance when writes fail (currently just shows error)
+  - Retry guidance when writes fail ✅
   - Connection status indicator (online/offline)
   - Keep UI simple - collapse details by default
 
@@ -360,5 +365,5 @@ Based on architecture review (Jan 14, 2026), recommended implementation order:
 
 ---
 
-**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1-5.2 recommended next.
+**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1 next.
 **Last Updated**: January 14, 2026
