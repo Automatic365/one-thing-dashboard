@@ -1440,11 +1440,17 @@
 	                }
 	            }, [user]);
 	
-	            const clearAllData = () => {
-	                const message = user
-	                    ? 'This will overwrite your cloud-synced data with an empty state. Type CLEAR to confirm:'
-	                    : 'This will clear your local data and reset the app. Continue?';
-	                if (user) {
+		            const clearAllData = () => {
+		                if (user) {
+		                    const shouldExport = window.confirm(
+		                        'Recommended: export a backup before clearing cloud data.\n\nClick OK to export now, or Cancel to continue without exporting.'
+		                    );
+		                    if (shouldExport) exportData();
+		                }
+		                const message = user
+		                    ? 'This will overwrite your cloud-synced data with an empty state. Type CLEAR to confirm:'
+		                    : 'This will clear your local data and reset the app. Continue?';
+		                if (user) {
 	                    const typed = window.prompt(message);
 	                    if (typed !== 'CLEAR') return;
 	                } else if (!window.confirm(message)) {
@@ -1453,11 +1459,17 @@
 	                saveState(getInitialState());
 	            };
 	
-	            const loadDemoData = () => {
-	                const message = user
-	                    ? 'This will overwrite your cloud-synced data with DEMO data. Type DEMO to confirm:'
-	                    : 'This will replace your current data with DEMO data. Continue?';
-	                if (user) {
+		            const loadDemoData = () => {
+		                if (user) {
+		                    const shouldExport = window.confirm(
+		                        'Recommended: export a backup before overwriting cloud data with demo data.\n\nClick OK to export now, or Cancel to continue without exporting.'
+		                    );
+		                    if (shouldExport) exportData();
+		                }
+		                const message = user
+		                    ? 'This will overwrite your cloud-synced data with DEMO data. Type DEMO to confirm:'
+		                    : 'This will replace your current data with DEMO data. Continue?';
+		                if (user) {
 	                    const typed = window.prompt(message);
 	                    if (typed !== 'DEMO') return;
 	                } else if (!window.confirm(message)) {
