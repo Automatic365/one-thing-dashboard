@@ -3,6 +3,24 @@
 ## Overview
 Add structured reflection and planning features based on The ONE Thing Planner to help users maintain accountability and adjust course monthly/quarterly.
 
+## Summary (TL;DR)
+
+### ✅ Done
+- Phase 0 stability foundations (cloud sync hardening, visible status, demo data + regression checklist)
+- Phase 1 monthly reflections
+- Phase 2 quarterly reflections
+- Phase 3 reminders + dashboard/progress UX enhancements
+- Phase 4 enhanced Progress calendar + day notes + obstacles tracker
+
+### ▶️ Next
+- **5.2 Release Hygiene & Safety** (version stamp, export-first nudges, simple retry guidance)
+- **5.1 Reflection History** (browse monthly/quarterly history + completion overview)
+
+### ⏳ Later
+- 5.5 deeper progress analytics (streaks, trends, richer day detail polish)
+- 5.6 obstacles workflow upgrades (timeline linking, weekly focus)
+- 5.3 code organization + 5.4 performance/scale (only when it hurts)
+
 ## Phase 0: Platform Stability & Release Hygiene (MOSTLY COMPLETED)
 
 These items are foundational and help prevent regressions like data wipes/reverts in production.
@@ -236,9 +254,8 @@ These items are foundational and help prevent regressions like data wipes/revert
   - Overlay different life areas on same chart
   - Compare 7/30/90 day trends
 - **Day detail improvements**:
-  - When viewing "All areas", show completions across all areas for selected day
-  - Currently only shows single area - less useful in All mode
-  - Add day notes preview in calendar grid (hover or indicator icon)
+  - (Shipped) When viewing "All areas", the day detail modal shows completions across all areas
+  - Remaining polish: add day notes preview in the calendar grid (hover or indicator icon)
 - **Notes overlay on calendar**:
   - Visual indicator when a day has notes
   - Quick preview on hover
