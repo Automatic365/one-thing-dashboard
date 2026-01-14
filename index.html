@@ -719,11 +719,14 @@
                         });
                     }
 
-                    // Assign new structure
-                    area.goals.dailyHistory = dailyHistory;
-                });
-	                return newData;
-	            }
+	                    // Assign new structure
+	                    area.goals.dailyHistory = dailyHistory;
+	
+	                    // Prevent double-counting: once migrated into dailyHistory, legacy completions are deprecated.
+	                    area.completions = [];
+	                });
+		                return newData;
+		            }
 	
 	            // Version 5 → 6: Add quarterly reviews array
 	            if (version === 5) {
@@ -3840,34 +3843,37 @@
 
             // Aggregate completions from all active life areas
             const allCompletions = [];
-            Object.keys(lifeAreas).forEach(areaKey => {
-                if (lifeAreas[areaKey].active) {
-                    const area = lifeAreas[areaKey];
-                    
-                    // v7 source of truth: dailyHistory
-                    const dailyHistory = area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
-                    Object.keys(dailyHistory).forEach(date => {
-                        const entry = dailyHistory[date];
-                        if (entry && entry.completed) {
-                            allCompletions.push({
-                                date,
-                                goal: entry.text || 'Completed Task',
-                                lifeArea: areaKey
-                            });
-                        }
-                    });
-                    
-                    // legacy fallback: completions array (kept for older migrated data)
-                    if (Array.isArray(area.completions)) {
-                        area.completions.forEach(comp => {
-                            allCompletions.push({
-                                ...comp,
-                                lifeArea: areaKey
-                            });
-                        });
-                    }
-                }
-            });
+	            Object.keys(lifeAreas).forEach(areaKey => {
+	                if (lifeAreas[areaKey].active) {
+	                    const area = lifeAreas[areaKey];
+	                    
+	                    // v7 source of truth: dailyHistory
+	                    const dailyHistory = area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
+	                    const completedDatesFromHistory = new Set();
+	                    Object.keys(dailyHistory).forEach(date => {
+	                        const entry = dailyHistory[date];
+	                        if (entry && entry.completed) {
+	                            completedDatesFromHistory.add(date);
+	                            allCompletions.push({
+	                                date,
+	                                goal: entry.text || 'Completed Task',
+	                                lifeArea: areaKey
+	                            });
+	                        }
+	                    });
+	                    
+	                    // legacy fallback: completions array (kept for older migrated data)
+	                    if (Array.isArray(area.completions)) {
+	                        area.completions.forEach(comp => {
+	                            if (comp && comp.date && completedDatesFromHistory.has(comp.date)) return;
+	                            allCompletions.push({
+	                                ...comp,
+	                                lifeArea: areaKey
+	                            });
+	                        });
+	                    }
+	                }
+	            });
 
             // Use local date for 'today'
             const todayStr = getLocalDateString();
