@@ -132,23 +132,173 @@ These items are foundational and help prevent regressions like data wipes/revert
 
 ## Phase 5: Post‑Phase‑4 Improvements (NEXT)
 
-### Release Hygiene / Safety
-- Add a visible build/version stamp in Settings/About to confirm what’s deployed
-- Add “export first” nudges before destructive operations (e.g., clear/reset in cloud mode)
-- Expand sync diagnostics / retry guidance (keep it simple, avoid noisy UI)
+### 5.1: Reflection History Browser (TOP PRIORITY)
+**Why prioritize**: Extracts maximum value from all the reflection data users are creating. Makes monthly/quarterly reviews actionable and reviewable over time.
 
-### Reflection History
-- Monthly review history browser (by month, per life area)
-- Quarterly review history browser (by quarter, per life area)
-- Completion status overview across active areas (which reviews are done/missing)
+#### Features
+- **Monthly review history browser**:
+  - Timeline view showing all past monthly reviews for a life area
+  - Filter by life area or view all
+  - Search/filter by date range
+  - Quick comparison: "What did I accomplish in Q1 vs Q2?"
+- **Quarterly review history browser**:
+  - Same timeline approach for quarterly reviews
+  - Highlight quarter transitions and goal progress
+- **Completion status overview**:
+  - Dashboard widget showing which reviews are done/missing across active areas
+  - Visual indicators for current month/quarter status
+  - Gentle nudge when reviews are overdue (without being intrusive)
 
-### Progress Deep Dive
-- Per-area streaks and trend charts (7/30/90), optionally overlay notes
-- “Day detail” view improvements (show completions across areas when scoped to All)
+#### Implementation Notes
+- Read-only view with option to "Edit current month/quarter"
+- Export individual reviews or full history
+- Consider pagination for users with 2+ years of data
 
-### Obstacles Tracker Upgrades
-- Link pinned obstacles to specific day notes / dates tried (lightweight timeline)
-- Add “recommended solution this week” workflow (pick one solution to focus on)
+### 5.2: Release Hygiene & Safety
+**Why prioritize**: Builds user trust and prevents data loss incidents as user base grows.
+
+#### Features
+- **Build/version stamp**:
+  - Add visible version number in Settings/About (e.g., "v1.7.2 - Jan 14, 2026")
+  - Helps troubleshoot "which version am I running?" questions
+  - Consider adding to bug reports
+- **Export-first nudges**:
+  - Before destructive operations (clear all, load demo in cloud mode), show "Export your data first?" prompt
+  - One-click export before proceeding
+  - Prevents accidental data loss
+- **Sync diagnostics expansion**:
+  - Add "View sync log" (last 10 sync events with timestamps)
+  - Retry guidance when writes fail (currently just shows error)
+  - Connection status indicator (online/offline)
+  - Keep UI simple - collapse details by default
+
+#### Implementation Notes
+- Version stamp could pull from git tag or manual constant
+- Export nudge should be dismissible ("Don't show again") but default-on for destructive operations
+
+### 5.3: Code Organization & Maintainability
+**Why prioritize**: Technical debt prevention. App is now 5459 lines in a single file - manageable today, but planning ahead prevents future refactoring pain.
+
+#### Considerations
+- **Component modularization**:
+  - Consider splitting into separate files when hitting 7000+ lines
+  - Natural boundaries: Dashboard, Goals, Progress, Reflection, Settings
+  - Could use ES modules or build step (Vite/Webpack)
+  - **Not urgent** - single file has benefits (easy deployment, no build complexity)
+- **Migration testing suite**:
+  - Automated tests for v5→v6→v7 migrations
+  - Test fixtures with real user data patterns
+  - Validate no data loss during migrations
+  - Consider adding migration dry-run mode (preview changes before applying)
+- **Data structure documentation**:
+  - Inline schema comments for v7 state structure
+  - Document what each field means and when it's used
+  - Helps future contributors (or future you!)
+
+#### Notes
+- **Not blockers** - current architecture is solid and maintainable
+- Consider these when you notice pain points (hard to find bugs, slow development)
+- Single-file approach is fine for projects under 10k lines
+
+### 5.4: Performance & Scale Considerations
+**Why prioritize**: Proactive monitoring prevents user complaints as data grows.
+
+#### Features
+- **localStorage size monitoring**:
+  - Show data usage in Settings (e.g., "Using 2.3 MB of 10 MB available")
+  - Warn at 80% capacity with suggestion to export/archive old data
+  - Archive feature: export and clear data older than X months (with confirmation)
+- **Data cleanup utilities**:
+  - Remove orphaned/invalid entries from migrations
+  - Compact daily history (remove duplicate entries)
+  - Optional: compress old reviews (JSON.stringify → base64 or similar)
+- **Lazy loading for long histories**:
+  - Only load visible month/quarter data in calendar views
+  - Paginate reflection history instead of loading everything
+  - Virtual scrolling for long lists (obstacles tracker, time blocks)
+
+#### Implementation Notes
+- localStorage limit is typically 5-10 MB (browser dependent)
+- Power users with 1+ years of daily history will hit 1-2 MB
+- Most users won't need this for 2-3 years, but plan ahead
+- Consider warning users before they hit limits
+
+### 5.5: Progress Deep Dive Enhancements
+**Why prioritize**: Makes the Progress tab more insightful and motivating.
+
+#### Features
+- **Per-area streaks**:
+  - Calculate and display longest streak per life area
+  - Current streak vs best streak comparison
+  - "You're 3 days from your record!" encouragement
+- **Trend charts** (optional, requires charting library):
+  - Line graph of completion rate over time
+  - Overlay different life areas on same chart
+  - Compare 7/30/90 day trends
+- **Day detail improvements**:
+  - When viewing "All areas", show completions across all areas for selected day
+  - Currently only shows single area - less useful in All mode
+  - Add day notes preview in calendar grid (hover or indicator icon)
+- **Notes overlay on calendar**:
+  - Visual indicator when a day has notes
+  - Quick preview on hover
+  - Click to edit notes inline
+
+### 5.6: Obstacles Tracker Upgrades
+**Why prioritize**: Makes the obstacles feature more actionable and habit-forming.
+
+#### Features
+- **Timeline linking**:
+  - Link pinned obstacles to specific dates tried (lightweight timeline)
+  - Show "Tried this solution 3 times: Jan 5, Jan 12, Jan 18" with outcomes
+  - Connect to day notes (did you leave a note about trying this solution?)
+- **Weekly focus workflow**:
+  - "Recommended solution this week" picker
+  - Select one obstacle-solution pair to focus on
+  - Track if you actually tried it this week
+  - Celebration when you mark it as "Worked!"
+- **Pattern insights**:
+  - "You've identified 'time management' as an obstacle 5 times across 3 life areas"
+  - Suggest consolidating duplicate obstacles
+  - Highlight solutions with highest success rate
+- **Obstacle resolution**:
+  - Mark obstacles as "Resolved" when no longer blocking you
+  - Archive resolved obstacles (keep history but hide from active list)
+  - Celebrate resolution with animation/badge
+
+### 5.7: User Feedback & Analytics (Optional)
+**Why consider**: Understand what features users actually use vs what sits unused.
+
+#### Features (Privacy-First)
+- **Anonymous usage stats** (opt-in only):
+  - Track which tabs get used most
+  - Completion rates (goals set vs completed)
+  - Feature adoption (% using obstacles tracker, reflection, etc.)
+  - **Never** track personal data (goals, reviews, etc.)
+- **In-app feedback widget**:
+  - Quick "Report bug" or "Suggest feature" button
+  - Includes version number automatically
+  - Optional screenshot attachment
+- **User satisfaction survey** (after 30 days of use):
+  - One-time popup: "How's it going? What could be better?"
+  - Helps prioritize Phase 6 features based on real user needs
+
+#### Notes
+- Only if you want to grow this beyond personal use
+- Privacy-first always - no tracking without explicit opt-in
+- Could use simple Google Form instead of building in-app
+
+## Phase 6: Future Enhancements (BACKLOG)
+
+### Ideas from User Feedback (TBD)
+- Will populate based on Phase 5 usage and feedback
+- Potential areas: collaboration/sharing, mobile app, integrations (calendar, todo apps), AI-powered insights
+
+### Advanced Features (If Users Request)
+- **Goal templates library**: Pre-built goal hierarchies for common scenarios (career growth, fitness, learning)
+- **Milestone celebrations**: Animations/badges when hitting streaks, completing reviews, etc.
+- **Export formats**: PDF reports, printable planner pages, CSV for analysis
+- **Import from other systems**: Todoist, Notion, Google Calendar integration
 
 ## Design Principles
 
@@ -165,7 +315,33 @@ These items are foundational and help prevent regressions like data wipes/revert
 - Correlation between reviews and goal achievement
 - User feedback on value of reflection process
 
+## Phase 5 Prioritization Recommendations
+
+Based on architecture review (Jan 14, 2026), recommended implementation order:
+
+### **Tier 1: High Value, Ship Next**
+1. **Reflection History Browser (5.1)** - Makes all reflection data useful over time. Users will want this after 2-3 months of use.
+2. **Release Hygiene & Safety (5.2)** - Builds trust, prevents data loss. Low effort, high impact.
+
+### **Tier 2: Important, But Not Urgent**
+3. **Performance Monitoring (5.4)** - Proactive monitoring beats reactive debugging. Add localStorage size warnings now, avoid complaints later.
+4. **Progress Deep Dive (5.5)** - Per-area streaks and day detail improvements add polish without complexity.
+
+### **Tier 3: Technical Debt - Address When You Feel Pain**
+5. **Code Organization (5.3)** - Current single-file approach is fine until 7000+ lines. Monitor but don't act yet.
+6. **Obstacles Tracker Upgrades (5.6)** - Nice-to-haves. Let users organically adopt the feature first, then enhance based on feedback.
+
+### **Tier 4: Consider After Phase 5**
+7. **User Feedback & Analytics (5.7)** - Only if growing beyond personal use. Privacy-first always.
+
+### Notes from Review
+- **Phases 0-4 are exceptionally complete** - comprehensive feature set with production-ready infrastructure
+- **Documentation quality is high** - README, roadmap, regression checklist all maintained
+- **Architecture is solid** - v7 data model scales well, cloud sync is battle-tested
+- **Watch for**: Testing surface area (so many features!), migration safety (v5→v7), localStorage size on long-term use
+- **Overall assessment**: 9/10 - This is a complete productivity platform, not just a goal tracker. Ship it, gather feedback, iterate.
+
 ---
 
-**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5 next priority.
+**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1-5.2 recommended next.
 **Last Updated**: January 14, 2026
