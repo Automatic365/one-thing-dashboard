@@ -1174,15 +1174,15 @@
 	            const [loading, setLoading] = useState(true);
 	            const [state, setState] = useState(getInitialState);
 	            const [currentView, setCurrentView] = useState('dashboard');
-	            const [syncing, setSyncing] = useState(false);
-	            const [syncError, setSyncError] = useState(null);
-	            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
-	            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
-	            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
-	            const lastMigrationWriteRef = React.useRef(null);
-	            const migrationWriteAttemptsRef = React.useRef(0);
-	            const attemptedVersionFixRef = React.useRef(false);
-	            const stateRef = React.useRef(state);
+		            const [syncing, setSyncing] = useState(false);
+		            const [syncError, setSyncError] = useState(null);
+		            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
+		            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
+		            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
+		            const lastMigrationWriteRef = React.useRef(null);
+		            const migrationWriteAttemptsRef = React.useRef(0);
+		            const attemptedVersionFixRef = React.useRef(false);
+		            const stateRef = React.useRef(state);
 	
 		            React.useEffect(() => {
 		                stateRef.current = state;
@@ -1214,6 +1214,20 @@
 		                    hour: '2-digit',
 		                    minute: '2-digit'
 		                });
+		            };
+
+		            const isLastDayOfMonth = (date = new Date()) => {
+		                const year = date.getFullYear();
+		                const month = date.getMonth();
+		                const lastDay = new Date(year, month + 1, 0).getDate();
+		                return date.getDate() === lastDay;
+		            };
+
+		            const isLastDayOfQuarter = (date = new Date()) => {
+		                const month = date.getMonth(); // 0-based
+		                const isQuarterEndMonth = month === 2 || month === 5 || month === 8 || month === 11;
+		                if (!isQuarterEndMonth) return false;
+		                return isLastDayOfMonth(date);
 		            };
 
 	            // Helper to get local date string YYYY-MM-DD
@@ -1787,12 +1801,22 @@
                 }
             };
 
-            const today = new Date().toISOString().split('T')[0];
+		            const today = new Date().toISOString().split('T')[0];
 
-	            // Get active life areas
-	            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
-	
-	            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
+		            // Get active life areas
+		            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
+
+		            const monthEndDueAreas = isLastDayOfMonth(new Date())
+		                ? activeAreas.filter((areaKey) => !getCurrentMonthReview(areaKey))
+		                : [];
+		            const quarterEndDueAreas = isLastDayOfQuarter(new Date())
+		                ? activeAreas.filter((areaKey) => !getCurrentQuarterReview(areaKey))
+		                : [];
+		            const monthlyReviewDue = monthEndDueAreas.length > 0;
+		            const quarterlyReviewDue = quarterEndDueAreas.length > 0;
+		            const anyReviewDue = monthlyReviewDue || quarterlyReviewDue;
+
+		            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
 
 	            if (loading) {
 	                return (
@@ -1853,6 +1877,11 @@
 	                                lastCloudSyncAt={lastCloudSyncAt}
 	                                formatTimeAgo={formatTimeAgo}
 	                                formatShortDateTime={formatShortDateTime}
+	                                anyReviewDue={anyReviewDue}
+	                                monthlyReviewDue={monthlyReviewDue}
+	                                quarterlyReviewDue={quarterlyReviewDue}
+	                                monthEndDueAreasCount={monthEndDueAreas.length}
+	                                quarterEndDueAreasCount={quarterEndDueAreas.length}
 	                            />
 
                             <main className="mt-8">
@@ -1987,9 +2016,14 @@
 	                        lastCloudSyncAt={lastCloudSyncAt}
 	                        formatTimeAgo={formatTimeAgo}
 	                        formatShortDateTime={formatShortDateTime}
+	                        anyReviewDue={anyReviewDue}
+	                        monthlyReviewDue={monthlyReviewDue}
+	                        quarterlyReviewDue={quarterlyReviewDue}
+	                        monthEndDueAreasCount={monthEndDueAreas.length}
+	                        quarterEndDueAreasCount={quarterEndDueAreas.length}
 	                    />
 
-                    <main className="max-w-7xl mx-auto px-4 py-8">
+	                    <main className="max-w-7xl mx-auto px-4 py-8">
                         {currentView === 'dashboard' && (
                             <Dashboard
                                 lifeAreas={state.lifeAreas}
@@ -2718,7 +2752,12 @@
 		            lastLocalSaveAt,
 		            lastCloudSyncAt,
 		            formatTimeAgo,
-		            formatShortDateTime
+		            formatShortDateTime,
+		            anyReviewDue = false,
+		            monthlyReviewDue = false,
+		            quarterlyReviewDue = false,
+		            monthEndDueAreasCount = 0,
+		            quarterEndDueAreasCount = 0
 		        }) {
 	            const navItems = [
 	                { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
@@ -2759,22 +2798,36 @@
 		                            </div>
 
                             <div className="flex items-center space-x-1">
-                                {navItems.map(item => {
-                                    const isActive = currentView === item.id;
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => setCurrentView(item.id)}
-                                            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                                ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
-                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                                                }`}
-                                        >
-                                            <span className="mr-2">{item.icon}</span>
-                                            <span className="hidden md:inline">{item.label}</span>
-                                        </button>
-                                    );
-                                })}
+	                                {navItems.map(item => {
+	                                    const isActive = currentView === item.id;
+	                                    const showDueBadge = item.id === 'reflect' && anyReviewDue;
+	                                    const badgeText = showDueBadge
+	                                        ? (monthlyReviewDue && quarterlyReviewDue
+	                                            ? `Due (${monthEndDueAreasCount + quarterEndDueAreasCount})`
+	                                            : monthlyReviewDue
+	                                                ? `Monthly due (${monthEndDueAreasCount})`
+	                                                : `Quarterly due (${quarterEndDueAreasCount})`)
+	                                        : '';
+	                                    return (
+	                                        <button
+	                                            key={item.id}
+	                                            onClick={() => setCurrentView(item.id)}
+	                                            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+	                                                ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
+	                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+	                                                }`}
+	                                            title={badgeText || undefined}
+	                                        >
+	                                            <span className="mr-2">{item.icon}</span>
+	                                            <span className="hidden md:inline">{item.label}</span>
+	                                            {showDueBadge && (
+	                                                <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-500/30 hidden md:inline-flex">
+	                                                    Due
+	                                                </span>
+	                                            )}
+	                                        </button>
+	                                    );
+	                                })}
 
 	                                {user && handleLogout && (
 	                                    <button
