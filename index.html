@@ -518,7 +518,10 @@
                 acc[key] = {
                     active: false,
                     goals: createEmptyGoals(),
-                    completions: []
+                    completions: [],
+                    reviews: {
+                        monthly: []
+                    }
                 };
                 return acc;
             }, {}),
@@ -998,6 +1001,49 @@
                 saveState(newState);
             };
 
+            // Save monthly review for a life area
+            const saveMonthlyReview = (areaKey, reviewData) => {
+                const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM format
+                const area = state.lifeAreas[areaKey];
+                const existingReviews = area.reviews.monthly || [];
+
+                // Check if review for current month exists
+                const existingIndex = existingReviews.findIndex(r => r.date === currentMonth);
+
+                let updatedReviews;
+                if (existingIndex >= 0) {
+                    // Update existing review
+                    updatedReviews = [...existingReviews];
+                    updatedReviews[existingIndex] = { date: currentMonth, ...reviewData };
+                } else {
+                    // Add new review
+                    updatedReviews = [...existingReviews, { date: currentMonth, ...reviewData }];
+                }
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...area,
+                            reviews: {
+                                ...area.reviews,
+                                monthly: updatedReviews
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Get monthly review for current month
+            const getCurrentMonthReview = (areaKey) => {
+                const currentMonth = new Date().toISOString().substring(0, 7);
+                const area = state.lifeAreas[areaKey];
+                if (!area || !area.reviews || !area.reviews.monthly) return null;
+                return area.reviews.monthly.find(r => r.date === currentMonth) || null;
+            };
+
             // Export data
             const exportData = () => {
                 const dataStr = JSON.stringify(state, null, 2);
@@ -1137,6 +1183,18 @@
                                     />
                                 )}
 
+                                {currentView === 'reflect' && (
+                                    <MonthlyReview
+                                        lifeAreas={state.lifeAreas}
+                                        activeAreas={activeAreas}
+                                        selectedLifeArea={selectedLifeArea}
+                                        setSelectedLifeArea={setSelectedLifeArea}
+                                        saveMonthlyReview={saveMonthlyReview}
+                                        getCurrentMonthReview={getCurrentMonthReview}
+                                        toggleLifeArea={toggleLifeArea}
+                                    />
+                                )}
+
                                 {currentView === 'settings' && (
                                     <Settings
                                         exportData={exportData}
@@ -1204,6 +1262,18 @@
                             <ProgressTracker
                                 lifeAreas={state.lifeAreas}
                                 activeAreas={activeAreas}
+                            />
+                        )}
+
+                        {currentView === 'reflect' && (
+                            <MonthlyReview
+                                lifeAreas={state.lifeAreas}
+                                activeAreas={activeAreas}
+                                selectedLifeArea={selectedLifeArea}
+                                setSelectedLifeArea={setSelectedLifeArea}
+                                saveMonthlyReview={saveMonthlyReview}
+                                getCurrentMonthReview={getCurrentMonthReview}
+                                toggleLifeArea={toggleLifeArea}
                             />
                         )}
 
@@ -1359,6 +1429,217 @@
         }
 
         // ==========================================
+        // MONTHLY REVIEW
+        // ==========================================
+        function MonthlyReview({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, saveMonthlyReview, getCurrentMonthReview, toggleLifeArea }) {
+            const [formData, setFormData] = React.useState({
+                accomplished: '',
+                doDifferently: '',
+                priorities: '',
+                obstacles: ['', '', ''],
+                solutions: ['', '', '']
+            });
+            const [showSaved, setShowSaved] = React.useState(false);
+
+            const currentMonth = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+
+            // Manual load function
+            const loadCurrentReview = () => {
+                if (!selectedLifeArea) return;
+                const existing = getCurrentMonthReview(selectedLifeArea);
+                if (existing) {
+                    setFormData({
+                        accomplished: existing.accomplished || '',
+                        doDifferently: existing.doDifferently || '',
+                        priorities: existing.priorities || '',
+                        obstacles: existing.obstacles || ['', '', ''],
+                        solutions: existing.solutions || ['', '', '']
+                    });
+                }
+            };
+
+            // Manual save function
+            const handleSave = () => {
+                if (!selectedLifeArea) return;
+                saveMonthlyReview(selectedLifeArea, formData);
+                setShowSaved(true);
+                setTimeout(() => setShowSaved(false), 2000);
+            };
+
+            const updateObstacle = (index, value) => {
+                const newObstacles = [...formData.obstacles];
+                newObstacles[index] = value;
+                setFormData({ ...formData, obstacles: newObstacles });
+            };
+
+            const updateSolution = (index, value) => {
+                const newSolutions = [...formData.solutions];
+                newSolutions[index] = value;
+                setFormData({ ...formData, solutions: newSolutions });
+            };
+
+            return (
+                <div className="space-y-8 fade-in">
+                    {/* Header */}
+                    <div className="glass rounded-2xl p-8">
+                        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 mb-2">
+                            Monthly Reflection
+                        </h2>
+                        <p className="text-slate-400 text-lg">Review your progress for {currentMonth}</p>
+                    </div>
+
+                    {/* Life Area Selector */}
+                    <div className="glass rounded-2xl p-6">
+                        <label className="block text-sm font-medium text-slate-300 mb-4">Select Life Area</label>
+                        {activeAreas.length === 0 ? (
+                            <div className="text-center py-8">
+                                <p className="text-slate-400 mb-4">No active life areas. Activate one to start reflecting.</p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {Object.keys(LIFE_AREAS).map(key => (
+                                        <button
+                                            key={key}
+                                            onClick={() => toggleLifeArea(key)}
+                                            className="px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700 hover:border-indigo-500/50 transition-all"
+                                        >
+                                            <span className="text-xl">{LIFE_AREAS[key].icon}</span>
+                                            <span className="block text-sm text-slate-300 mt-1">{LIFE_AREAS[key].name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-3">
+                                {activeAreas.map(areaKey => {
+                                    const area = LIFE_AREAS[areaKey];
+                                    const isSelected = selectedLifeArea === areaKey;
+                                    return (
+                                        <button
+                                            key={areaKey}
+                                            onClick={() => setSelectedLifeArea(areaKey)}
+                                            className={`px-5 py-3 rounded-xl border transition-all transform hover:scale-105 ${
+                                                isSelected
+                                                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-transparent shadow-glow'
+                                                    : 'bg-slate-800/50 text-slate-300 border-slate-700 hover:border-indigo-500/50'
+                                            }`}
+                                        >
+                                            <span className="mr-2">{area.icon}</span>
+                                            {area.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedLifeArea && (
+                        <>
+                            {/* Load/Save Controls */}
+                            <div className="glass rounded-2xl p-6">
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={loadCurrentReview}
+                                        className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition-all transform hover:scale-105"
+                                    >
+                                        Load Current Month's Review
+                                    </button>
+                                    <button
+                                        onClick={handleSave}
+                                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium shadow-glow hover:shadow-cyan-500/50 transition-all transform hover:scale-105"
+                                    >
+                                        Save Review
+                                    </button>
+                                    {showSaved && (
+                                        <div className="px-4 py-3 rounded-xl bg-green-500/20 text-green-400 border border-green-500/30 flex items-center">
+                                            ✓ Saved!
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Review Questions */}
+                            <div className="space-y-6">
+                                {/* Question 1 */}
+                                <div className="glass rounded-2xl p-6">
+                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                        1. What's one thing you accomplished last month that made everything else easier or unnecessary?
+                                    </label>
+                                    <textarea
+                                        value={formData.accomplished}
+                                        onChange={(e) => setFormData({ ...formData, accomplished: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                        rows="3"
+                                        placeholder="Reflect on your biggest win..."
+                                    />
+                                </div>
+
+                                {/* Question 2 */}
+                                <div className="glass rounded-2xl p-6">
+                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                        2. What's one thing you can do differently this month that will make everything else easier or unnecessary?
+                                    </label>
+                                    <textarea
+                                        value={formData.doDifferently}
+                                        onChange={(e) => setFormData({ ...formData, doDifferently: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                        rows="3"
+                                        placeholder="What will you change this month?"
+                                    />
+                                </div>
+
+                                {/* Question 3 */}
+                                <div className="glass rounded-2xl p-6">
+                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                        3. What priorities can you accomplish this month to feel like you're on track for your annual goals?
+                                    </label>
+                                    <textarea
+                                        value={formData.priorities}
+                                        onChange={(e) => setFormData({ ...formData, priorities: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                        rows="3"
+                                        placeholder="List your key priorities..."
+                                    />
+                                </div>
+
+                                {/* Question 4 & 5 - Obstacles and Solutions */}
+                                <div className="glass rounded-2xl p-6">
+                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                        4 & 5. What three things are most likely to stop you, and what's one solution for each?
+                                    </label>
+                                    <div className="space-y-4">
+                                        {[0, 1, 2].map(index => (
+                                            <div key={index} className="grid md:grid-cols-2 gap-4 p-4 bg-slate-800/30 rounded-xl">
+                                                <div>
+                                                    <label className="block text-xs text-slate-400 mb-2">Obstacle {index + 1}</label>
+                                                    <input
+                                                        type="text"
+                                                        value={formData.obstacles[index]}
+                                                        onChange={(e) => updateObstacle(index, e.target.value)}
+                                                        className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                                        placeholder="What might stop you?"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-slate-400 mb-2">Solution {index + 1}</label>
+                                                    <input
+                                                        type="text"
+                                                        value={formData.solutions[index]}
+                                                        onChange={(e) => updateSolution(index, e.target.value)}
+                                                        className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                                                        placeholder="How will you overcome it?"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
         // NAVIGATION
         // ==========================================
         function Navigation({ currentView, setCurrentView, user, handleLogout, syncing }) {
@@ -1367,6 +1648,7 @@
                 { id: 'goals', label: 'Goals', icon: '📋' },
                 { id: 'timeblock', label: 'Time Blocking', icon: '⏰' },
                 { id: 'progress', label: 'Progress', icon: '📊' },
+                { id: 'reflect', label: 'Reflect', icon: '💭' },
                 { id: 'settings', label: 'Settings', icon: '⚙️' }
             ];
 
