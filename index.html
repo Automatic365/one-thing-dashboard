@@ -598,6 +598,10 @@
 
         const getInitialState = () => ({
             version: 7, // Track data version for migrations (v7 = daily history)
+            _meta: {
+                clientId: getClientId(),
+                updatedAt: null
+            },
             lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
                 acc[key] = {
                     active: key === 'business', // Default Business to active to prevent lockout
@@ -883,12 +887,12 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    return migrateData(parsed);
+                    return ensureMeta(migrateData(parsed));
                 } catch (e) {
                     console.error('Error parsing saved data:', e);
                 }
             }
-            return getInitialState();
+            return ensureMeta(getInitialState());
         };
 
 	        const saveToLocalStorage = (state) => {
@@ -903,6 +907,41 @@
 	            const newM = String(date.getUTCMonth() + 1).padStart(2, '0');
 	            const newD = String(date.getUTCDate()).padStart(2, '0');
 	            return `${newY}-${newM}-${newD}`;
+	        };
+
+	        const getClientId = () => {
+	            try {
+	                const key = 'oneThingClientId';
+	                const existing = localStorage.getItem(key);
+	                if (existing) return existing;
+	                const generated = `client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+	                localStorage.setItem(key, generated);
+	                return generated;
+	            } catch (e) {
+	                return `client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+	            }
+	        };
+
+	        const getMetaMs = (meta) => {
+	            if (!meta || !meta.updatedAt) return null;
+	            const ms = Date.parse(meta.updatedAt);
+	            return Number.isFinite(ms) ? ms : null;
+	        };
+
+	        const withMeta = (state, overrides = {}) => {
+	            const clientId = getClientId();
+	            const nextMeta = {
+	                ...(state && state._meta ? state._meta : {}),
+	                clientId,
+	                ...overrides
+	            };
+	            return { ...state, _meta: nextMeta };
+	        };
+	
+	        const ensureMeta = (state) => {
+	            if (!state || typeof state !== 'object') return withMeta(getInitialState(), { updatedAt: null });
+	            if (state._meta && state._meta.clientId) return state;
+	            return withMeta(state, { updatedAt: state._meta && state._meta.updatedAt ? state._meta.updatedAt : null });
 	        };
 	
 	        const createDemoState = (todayStr) => {
@@ -1134,10 +1173,17 @@
 	            const [currentView, setCurrentView] = useState('dashboard');
 	            const [syncing, setSyncing] = useState(false);
 	            const [syncError, setSyncError] = useState(null);
+	            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
+	            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
 	            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
 	            const lastMigrationWriteRef = React.useRef(null);
 	            const migrationWriteAttemptsRef = React.useRef(0);
 	            const attemptedVersionFixRef = React.useRef(false);
+	            const stateRef = React.useRef(state);
+	
+	            React.useEffect(() => {
+	                stateRef.current = state;
+	            }, [state]);
 
             // Helper to get local date string YYYY-MM-DD
             const getLocalDateString = () => {
@@ -1180,8 +1226,22 @@
 	                        const originalData = doc.data();
 	                        const brokenV7 = isBrokenV7Data(originalData);
 	                        const originalStr = stableStringify(originalData);
-	                        const data = migrateData(originalData);
-	                        setState(data);
+		                        const data = ensureMeta(migrateData(originalData));
+	
+	                        const localMetaMs = getMetaMs(stateRef.current && stateRef.current._meta);
+	                        const remoteMetaMs = getMetaMs(data && data._meta);
+	                        const isRemoteStale =
+	                            localMetaMs &&
+	                            (!remoteMetaMs || remoteMetaMs < localMetaMs) &&
+	                            !doc.metadata.hasPendingWrites;
+	
+		                        if (isRemoteStale) {
+		                            setSyncing(false);
+		                            return;
+		                        }
+		
+		                        setState(data);
+		                        setLastCloudSyncAt(new Date().toISOString());
 
 	                        const dataStr = stableStringify(data);
 	                        const originalNoVersionStr = stableStringify(
@@ -1213,26 +1273,27 @@
 	                                const diff = firstDiffPath(originalData, data);
 	                                if (diff) console.log("Migration diff at:", diff);
 	                                console.log("Saving migrated/repaired data...");
-	                                if (onlyVersionDiffers) {
-	                                    if (!attemptedVersionFixRef.current) {
-	                                        attemptedVersionFixRef.current = true;
-	                                        docRef.set({ version: data.version }, { merge: true }).catch(err => {
-	                                            console.error("Error saving migrated version:", err);
-	                                            setSyncError(err && err.message ? err.message : String(err));
-	                                        });
-	                                    } else {
-	                                        // Don’t keep writing forever if some other client keeps storing version as a string.
-	                                        // We can still run the app using the migrated in-memory state.
-	                                    }
-	                                } else {
-	                                    // For broken v7 documents, do a full replace so the repaired structure actually persists.
-	                                    const writePromise = brokenV7 ? docRef.set(data) : docRef.set(data, { merge: true });
-	                                    writePromise.catch(err => {
-	                                        console.error("Error saving migrated data:", err);
-	                                        setSyncError(err && err.message ? err.message : String(err));
-	                                    });
-	                                }
-	                            }
+		                                const stampedForWrite = withMeta(data, { updatedAt: new Date().toISOString() });
+		                                if (onlyVersionDiffers) {
+		                                    if (!attemptedVersionFixRef.current) {
+		                                        attemptedVersionFixRef.current = true;
+		                                        docRef.set({ version: data.version, _meta: stampedForWrite._meta }, { merge: true }).catch(err => {
+		                                            console.error("Error saving migrated version:", err);
+		                                            setSyncError(err && err.message ? err.message : String(err));
+		                                        });
+		                                    } else {
+		                                        // Don’t keep writing forever if some other client keeps storing version as a string.
+		                                        // We can still run the app using the migrated in-memory state.
+		                                    }
+		                                } else {
+		                                    // For broken v7 documents, do a full replace so the repaired structure actually persists.
+		                                    const writePromise = brokenV7 ? docRef.set(stampedForWrite) : docRef.set(stampedForWrite, { merge: true });
+		                                    writePromise.catch(err => {
+		                                        console.error("Error saving migrated data:", err);
+		                                        setSyncError(err && err.message ? err.message : String(err));
+		                                    });
+		                                }
+		                            }
 	                        }
 	                    } else {
 	                        // First time user - migrate from localStorage
@@ -1252,15 +1313,17 @@
 
             // Save to Firestore or localStorage
 	            const saveState = useCallback((newState) => {
-	                setState(newState);
+	                const stamped = withMeta(newState, { updatedAt: new Date().toISOString() });
+	                setLastLocalSaveAt(stamped._meta.updatedAt);
+	                setState(stamped);
 
 	                if (user && db) {
-	                    db.collection('users').doc(user.uid).set(newState, { merge: true }).catch((err) => {
+	                    db.collection('users').doc(user.uid).set(stamped, { merge: true }).catch((err) => {
 	                        console.error("Error saving state:", err);
 	                        setSyncError(err && err.message ? err.message : String(err));
 	                    });
 	                } else {
-	                    saveToLocalStorage(newState);
+	                    saveToLocalStorage(stamped);
 	                }
 	            }, [user]);
 	
@@ -2599,7 +2662,7 @@
         // ==========================================
         // NAVIGATION
         // ==========================================
-        function Navigation({ currentView, setCurrentView, user, handleLogout, syncing }) {
+	        function Navigation({ currentView, setCurrentView, user, handleLogout, syncing }) {
             const navItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
                 { id: 'goals', label: 'Goals', icon: '📋' },
@@ -2620,13 +2683,18 @@
                                 <div>
                                     <div className="text-lg font-bold text-white tracking-tight">The ONE Thing</div>
                                 </div>
-                                {syncing && (
-                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs flex items-center border border-indigo-500/30">
-                                        <div className="spinner inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full mr-1.5"></div>
-                                        Syncing
-                                    </div>
-                                )}
-                            </div>
+	                                {syncing && (
+	                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs flex items-center border border-indigo-500/30">
+	                                        <div className="spinner inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full mr-1.5"></div>
+	                                        Syncing
+	                                    </div>
+	                                )}
+	                                {user && !syncing && user.email && (
+	                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-200 text-xs border border-emerald-500/20 hidden sm:block">
+	                                        Cloud
+	                                    </div>
+	                                )}
+	                            </div>
 
                             <div className="flex items-center space-x-1">
                                 {navItems.map(item => {
