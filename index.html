@@ -5361,7 +5361,7 @@
 	            }, {});
 
             const completedDays = lastNDays.filter(date => completionMap[date]).length;
-            const completionRate = Math.round((completedDays / rangeDays) * 100);
+	            const completionRate = Math.round((completedDays / rangeDays) * 100);
 
             let currentStreak = 0;
             for (let i = 0; i < rangeDays; i++) {
@@ -5374,6 +5374,73 @@
                     break;
                 }
             }
+
+	            const buildSparklinePoints = (values, width = 140, height = 28, pad = 3) => {
+	                const safe = Array.isArray(values) ? values : [];
+	                if (safe.length <= 1) return '';
+	                const maxV = Math.max(1, ...safe);
+	                const minV = Math.min(0, ...safe);
+	                const range = Math.max(1e-6, maxV - minV);
+	                const innerW = width - pad * 2;
+	                const innerH = height - pad * 2;
+	                return safe
+	                    .map((v, idx) => {
+	                        const x = pad + (innerW * idx) / (safe.length - 1);
+	                        const norm = (v - minV) / range;
+	                        const y = pad + innerH - norm * innerH;
+	                        return `${x.toFixed(1)},${y.toFixed(1)}`;
+	                    })
+	                    .join(' ');
+	            };
+
+	            const dailyBinarySeries = lastNDays.map((d) => (completionMap[d] ? 1 : 0));
+	            const sparkPoints = buildSparklinePoints(dailyBinarySeries);
+
+	            const perAreaStats = activeAreas.map((areaKey) => {
+	                const area = lifeAreas[areaKey];
+	                const dailyHistory = area && area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
+	                const completed = new Set();
+	                Object.keys(dailyHistory).forEach((date) => {
+	                    const entry = dailyHistory[date];
+	                    if (entry && entry.completed) completed.add(date);
+	                });
+
+	                // Current streak (all-time), ending today
+	                let current = 0;
+	                for (let i = 0; i < 3650; i++) {
+	                    const d = new Date();
+	                    d.setDate(d.getDate() - i);
+	                    const ds = getLocalDateString(d);
+	                    if (completed.has(ds)) current++;
+	                    else break;
+	                }
+
+	                // Best streak (all-time)
+	                const dates = Array.from(completed).sort();
+	                let best = 0;
+	                let run = 0;
+	                let prev = null;
+	                dates.forEach((ds) => {
+	                    if (!prev) {
+	                        run = 1;
+	                        best = Math.max(best, run);
+	                        prev = ds;
+	                        return;
+	                    }
+	                    const prevDate = parseLocalDate(prev);
+	                    prevDate.setDate(prevDate.getDate() + 1);
+	                    const expected = getLocalDateString(prevDate);
+	                    if (ds === expected) run += 1;
+	                    else run = 1;
+	                    best = Math.max(best, run);
+	                    prev = ds;
+	                });
+
+	                const rangeCompleted = lastNDays.filter((d) => completed.has(d)).length;
+	                const rangeRate = Math.round((rangeCompleted / rangeDays) * 100);
+
+	                return { areaKey, current, best, rangeCompleted, rangeRate };
+	            });
 
 	            return (
 	                <div className="space-y-8 fade-in text-white">
@@ -5505,7 +5572,7 @@
 	                        </div>
 	                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+	                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="glass rounded-2xl p-6 border border-blue-500/30 bg-blue-500/5 text-center group hover:bg-blue-500/10 transition-colors">
                             <div className="text-5xl font-bold text-blue-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]">
                                 {currentStreak}
@@ -5522,14 +5589,64 @@
                             <div className="text-emerald-300/60 text-xs mt-1">Last {rangeDays} days</div>
                         </div>
 
-                        <div className="glass rounded-2xl p-6 border border-purple-500/30 bg-purple-500/5 text-center group hover:bg-purple-500/10 transition-colors">
-                            <div className="text-5xl font-bold text-purple-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">
-                                {completionRate}%
-                            </div>
-                            <div className="text-purple-200 font-bold uppercase tracking-wider text-sm">Completion Rate</div>
-                            <div className="text-purple-300/60 text-xs mt-1">Last {rangeDays} days</div>
-                        </div>
-                    </div>
+	                        <div className="glass rounded-2xl p-6 border border-purple-500/30 bg-purple-500/5 text-center group hover:bg-purple-500/10 transition-colors">
+	                            <div className="text-5xl font-bold text-purple-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(167,139,250,0.5)]">
+	                                {completionRate}%
+	                            </div>
+	                            <div className="text-purple-200 font-bold uppercase tracking-wider text-sm">Completion Rate</div>
+	                            <div className="text-purple-300/60 text-xs mt-1">Last {rangeDays} days</div>
+	                            {sparkPoints && (
+	                                <div className="mt-4 flex justify-center">
+	                                    <svg width="140" height="28" viewBox="0 0 140 28" className="opacity-90">
+	                                        <polyline
+	                                            points={sparkPoints}
+	                                            fill="none"
+	                                            stroke="currentColor"
+	                                            strokeWidth="2"
+	                                            className="text-purple-300"
+	                                        />
+	                                    </svg>
+	                                </div>
+	                            )}
+	                        </div>
+	                    </div>
+
+	                    {selectedAreaScope === 'all' && (
+	                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+	                            <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+	                                Per-Life-Area Streaks
+	                            </h3>
+	                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+	                                {perAreaStats.map((row) => {
+	                                    const info = LIFE_AREAS[row.areaKey] || LIFE_AREAS.business;
+	                                    return (
+	                                        <div key={row.areaKey} className="rounded-2xl border border-slate-700/60 bg-slate-800/30 p-6">
+	                                            <div className="flex items-center justify-between">
+	                                                <div className="flex items-center gap-2">
+	                                                    <span className="text-2xl">{info.icon}</span>
+	                                                    <div className="font-bold text-white">{info.name}</div>
+	                                                </div>
+	                                                <div className="text-xs font-mono text-slate-400">{row.rangeRate}% / {rangeDays}d</div>
+	                                            </div>
+	                                            <div className="mt-5 grid grid-cols-2 gap-4">
+	                                                <div className="rounded-xl border border-slate-700 bg-slate-900/30 p-4 text-center">
+	                                                    <div className="text-3xl font-black text-emerald-300">{row.current}</div>
+	                                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Current</div>
+	                                                </div>
+	                                                <div className="rounded-xl border border-slate-700 bg-slate-900/30 p-4 text-center">
+	                                                    <div className="text-3xl font-black text-indigo-300">{row.best}</div>
+	                                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Best</div>
+	                                                </div>
+	                                            </div>
+	                                            <div className="mt-4 text-xs text-slate-500">
+	                                                Completed days in range: <span className="font-mono text-slate-300">{row.rangeCompleted}</span>
+	                                            </div>
+	                                        </div>
+	                                    );
+	                                })}
+	                            </div>
+	                        </div>
+	                    )}
 
 	                    {viewMode === 'range' ? (
 	                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
@@ -5612,7 +5729,7 @@
 	                                                                ? 'bg-slate-800 border-indigo-500/50 hover:border-indigo-500'
 	                                                                : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800 hover:border-slate-600'
 	                                                    }`}
-	                                                    title={date}
+	                                                    title={`${date}\n${count} completion${count === 1 ? '' : 's'}${note ? `\nNote: ${String(note).slice(0, 80)}` : ''}`}
 	                                                >
 	                                                    <div className={`text-xs font-bold ${isToday ? 'text-indigo-300' : 'text-slate-200'}`}>
 	                                                        {Number(date.slice(-2))}
