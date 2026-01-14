@@ -3530,12 +3530,30 @@
             const allCompletions = [];
             Object.keys(lifeAreas).forEach(areaKey => {
                 if (lifeAreas[areaKey].active) {
-                    lifeAreas[areaKey].completions.forEach(comp => {
-                        allCompletions.push({
-                            ...comp,
-                            lifeArea: areaKey
-                        });
+                    const area = lifeAreas[areaKey];
+                    
+                    // v7 source of truth: dailyHistory
+                    const dailyHistory = area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
+                    Object.keys(dailyHistory).forEach(date => {
+                        const entry = dailyHistory[date];
+                        if (entry && entry.completed) {
+                            allCompletions.push({
+                                date,
+                                goal: entry.text || 'Completed Task',
+                                lifeArea: areaKey
+                            });
+                        }
                     });
+                    
+                    // legacy fallback: completions array (kept for older migrated data)
+                    if (Array.isArray(area.completions)) {
+                        area.completions.forEach(comp => {
+                            allCompletions.push({
+                                ...comp,
+                                lifeArea: areaKey
+                            });
+                        });
+                    }
                 }
             });
 
