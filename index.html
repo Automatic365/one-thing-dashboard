@@ -3527,17 +3527,22 @@
 	                                        {LIFE_AREAS[areaKey].name}
 	                                    </button>
 	
-		                                    <button
-		                                        type="button"
-		                                        onClick={(e) => {
-		                                            e.preventDefault();
-		                                            e.stopPropagation();
-		                                            const nextActiveAreas = activeAreas.filter(k => k !== areaKey);
-		                                            if (selectedLifeArea === areaKey && nextActiveAreas.length > 0) {
-		                                                setSelectedLifeArea(nextActiveAreas[0]);
-		                                            }
-		                                            toggleLifeArea(areaKey);
-		                                        }}
+			                                    <button
+			                                        type="button"
+			                                        onClick={(e) => {
+			                                            e.preventDefault();
+			                                            e.stopPropagation();
+			                                            const areaName = LIFE_AREAS[areaKey] ? LIFE_AREAS[areaKey].name : areaKey;
+			                                            const ok = window.confirm(
+			                                                `Remove "${areaName}"?\n\nThis hides it from your dashboard, progress, and reflections. You can add it back later.`
+			                                            );
+			                                            if (!ok) return;
+			                                            const nextActiveAreas = activeAreas.filter(k => k !== areaKey);
+			                                            if (selectedLifeArea === areaKey && nextActiveAreas.length > 0) {
+			                                                setSelectedLifeArea(nextActiveAreas[0]);
+			                                            }
+			                                            toggleLifeArea(areaKey);
+			                                        }}
 		                                        title="Remove life area"
 		                                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold transition-all bg-slate-900 border-slate-700 text-slate-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-200"
 		                                    >
