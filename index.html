@@ -415,6 +415,8 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        const APP_VERSION = "v1.0.0";
+        const APP_BUILD_DATE = "2026-01-14";
         const { useState, useEffect, useCallback } = React;
 
         // ==========================================
@@ -1214,6 +1216,7 @@
 	            const [currentView, setCurrentView] = useState('dashboard');
 		            const [syncing, setSyncing] = useState(false);
 		            const [syncError, setSyncError] = useState(null);
+		            const [lastSaveAttempt, setLastSaveAttempt] = useState(null);
 		            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
 		            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
 		            const [dismissedReviewReminders, setDismissedReviewReminders] = useState(() => {
@@ -1423,26 +1426,33 @@
             }, [user]);
 
             // Save to Firestore or localStorage
-	            const saveState = useCallback((newState) => {
-	                const stamped = withMeta(newState, { updatedAt: new Date().toISOString() });
-	                setLastLocalSaveAt(stamped._meta.updatedAt);
-	                setState(stamped);
+		            const saveState = useCallback((newState) => {
+		                const stamped = withMeta(newState, { updatedAt: new Date().toISOString() });
+		                setLastSaveAttempt(stamped);
+		                setLastLocalSaveAt(stamped._meta.updatedAt);
+		                setState(stamped);
 
-	                if (user && db) {
-	                    db.collection('users').doc(user.uid).set(stamped, { merge: true }).catch((err) => {
-	                        console.error("Error saving state:", err);
-	                        setSyncError(err && err.message ? err.message : String(err));
-	                    });
-	                } else {
-	                    saveToLocalStorage(stamped);
-	                }
-	            }, [user]);
+		                if (user && db) {
+		                    db.collection('users').doc(user.uid).set(stamped, { merge: true }).catch((err) => {
+		                        console.error("Error saving state:", err);
+		                        setSyncError(err && err.message ? err.message : String(err));
+		                    });
+		                } else {
+		                    saveToLocalStorage(stamped);
+		                }
+		            }, [user]);
 	
-	            const clearAllData = () => {
-	                const message = user
-	                    ? 'This will overwrite your cloud-synced data with an empty state. Type CLEAR to confirm:'
-	                    : 'This will clear your local data and reset the app. Continue?';
-	                if (user) {
+		            const clearAllData = () => {
+		                if (user) {
+		                    const shouldExport = window.confirm(
+		                        'Recommended: export a backup before clearing cloud data.\n\nClick OK to export now, or Cancel to continue without exporting.'
+		                    );
+		                    if (shouldExport) exportData();
+		                }
+		                const message = user
+		                    ? 'This will overwrite your cloud-synced data with an empty state. Type CLEAR to confirm:'
+		                    : 'This will clear your local data and reset the app. Continue?';
+		                if (user) {
 	                    const typed = window.prompt(message);
 	                    if (typed !== 'CLEAR') return;
 	                } else if (!window.confirm(message)) {
@@ -1451,11 +1461,17 @@
 	                saveState(getInitialState());
 	            };
 	
-	            const loadDemoData = () => {
-	                const message = user
-	                    ? 'This will overwrite your cloud-synced data with DEMO data. Type DEMO to confirm:'
-	                    : 'This will replace your current data with DEMO data. Continue?';
-	                if (user) {
+		            const loadDemoData = () => {
+		                if (user) {
+		                    const shouldExport = window.confirm(
+		                        'Recommended: export a backup before overwriting cloud data with demo data.\n\nClick OK to export now, or Cancel to continue without exporting.'
+		                    );
+		                    if (shouldExport) exportData();
+		                }
+		                const message = user
+		                    ? 'This will overwrite your cloud-synced data with DEMO data. Type DEMO to confirm:'
+		                    : 'This will replace your current data with DEMO data. Continue?';
+		                if (user) {
 	                    const typed = window.prompt(message);
 	                    if (typed !== 'DEMO') return;
 	                } else if (!window.confirm(message)) {
@@ -2186,22 +2202,40 @@
 	                            </div>
 	                        </div>
 	                    )}
-	                    {syncError && (
-	                        <div className="max-w-7xl mx-auto px-4 pt-4">
-	                            <div className="glass border border-red-500/40 rounded-xl p-4 flex items-start justify-between gap-4">
-	                                <div>
-	                                    <div className="font-bold text-red-300">Cloud sync error</div>
-	                                    <div className="text-sm text-slate-200/80 font-mono mt-1 break-all">{syncError}</div>
-	                                </div>
-	                                <button
-	                                    onClick={() => setSyncError(null)}
-	                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"
-	                                >
-	                                    Dismiss
-	                                </button>
-	                            </div>
-	                        </div>
-	                    )}
+		                    {syncError && (
+		                        <div className="max-w-7xl mx-auto px-4 pt-4">
+		                            <div className="glass border border-red-500/40 rounded-xl p-4 flex items-start justify-between gap-4">
+		                                <div>
+		                                    <div className="font-bold text-red-300">Cloud sync error</div>
+		                                    <div className="text-sm text-slate-200/80 font-mono mt-1 break-all">{syncError}</div>
+		                                    <div className="text-xs text-slate-400 mt-2">
+		                                        If this persists, try refreshing, checking your connection, or exporting a backup before retrying changes.
+		                                    </div>
+		                                </div>
+		                                <div className="flex items-center gap-2">
+		                                    <button
+		                                        onClick={() => {
+		                                            if (lastSaveAttempt) saveState(lastSaveAttempt);
+		                                        }}
+		                                        disabled={!lastSaveAttempt}
+		                                        className={`px-3 py-2 rounded-lg text-sm border ${
+		                                            lastSaveAttempt
+		                                                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+		                                                : 'bg-slate-900/40 border-slate-800 text-slate-600 cursor-not-allowed'
+		                                        }`}
+		                                    >
+		                                        Retry Save
+		                                    </button>
+		                                    <button
+		                                        onClick={() => setSyncError(null)}
+		                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"
+		                                    >
+		                                        Dismiss
+		                                    </button>
+		                                </div>
+		                            </div>
+		                        </div>
+		                    )}
 	
 	                    {showDebug && (
 	                        <div className="fixed bottom-4 right-4 z-50 max-w-sm glass border border-slate-700/60 rounded-xl p-3 text-xs font-mono text-slate-200">
@@ -5398,6 +5432,14 @@
                                 'All data is stored locally in your browser. No information is sent to any server.'
                             }
                         </p>
+                        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 font-mono">
+                            <span className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-900/30">
+                                {APP_VERSION}
+                            </span>
+                            <span className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-900/30">
+                                {APP_BUILD_DATE}
+                            </span>
+                        </div>
                     </div>
                 </div>
             );
