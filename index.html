@@ -415,6 +415,8 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        const APP_VERSION = "v1.0.0";
+        const APP_BUILD_DATE = "2026-01-14";
         const { useState, useEffect, useCallback } = React;
 
         // ==========================================
@@ -5398,6 +5400,14 @@
                                 'All data is stored locally in your browser. No information is sent to any server.'
                             }
                         </p>
+                        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500 font-mono">
+                            <span className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-900/30">
+                                {APP_VERSION}
+                            </span>
+                            <span className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-900/30">
+                                {APP_BUILD_DATE}
+                            </span>
+                        </div>
                     </div>
                 </div>
             );
