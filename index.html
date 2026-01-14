@@ -2977,14 +2977,41 @@
 	        // ==========================================
 	        // DASHBOARD
 	        // ==========================================
-	        function DailyOneThingEditor({ areaKey, dateStr, isToday, dailyEntry, updateGoal, completeDaily }) {
+	        function DailyOneThingEditor({ areaKey, dateStr, isToday, dailyEntry, updateGoal, completeDaily, suggestions = [] }) {
 	            const [draft, setDraft] = React.useState(dailyEntry.text || '');
 	            const [editing, setEditing] = React.useState(!dailyEntry.completed);
 	            const [saved, setSaved] = React.useState(false);
+	            const [autosaveEnabled, setAutosaveEnabled] = React.useState(() => {
+	                try {
+	                    const raw = localStorage.getItem('oneThingAutosaveDaily');
+	                    if (raw === null) return true;
+	                    return raw === '1';
+	                } catch {
+	                    return true;
+	                }
+	            });
+	            const [autosaveStatus, setAutosaveStatus] = React.useState('idle'); // idle | pending | saved
 	            const [isDirty, setIsDirty] = React.useState(false);
 	            const isFocusedRef = React.useRef(false);
 	            const lastKeyRef = React.useRef(`${areaKey}:${dateStr}`);
+	            const autosaveTimerRef = React.useRef(null);
+	            const savedTimerRef = React.useRef(null);
 	
+	            React.useEffect(() => {
+	                try {
+	                    localStorage.setItem('oneThingAutosaveDaily', autosaveEnabled ? '1' : '0');
+	                } catch {
+	                    // ignore
+	                }
+	            }, [autosaveEnabled]);
+	
+	            React.useEffect(() => {
+	                return () => {
+	                    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+	                    if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current);
+	                };
+	            }, []);
+
 	            React.useEffect(() => {
 	                const key = `${areaKey}:${dateStr}`;
 	                const keyChanged = lastKeyRef.current !== key;
@@ -2992,23 +3019,46 @@
 	                    lastKeyRef.current = key;
 	                    setDraft(dailyEntry.text || '');
 	                    setEditing(!dailyEntry.completed);
+	                    setAutosaveStatus('idle');
 	                    setIsDirty(false);
 	                    return;
 	                }
-	
+
 	                // If Firestore snapshot updates come in while the user is typing, don’t clobber their draft.
 	                if (isFocusedRef.current || isDirty) return;
 	                setDraft(dailyEntry.text || '');
 	                setEditing(!dailyEntry.completed);
 	            }, [areaKey, dateStr, dailyEntry.completed, dailyEntry.text, isDirty]);
-	
+
 	            const saveDraft = () => {
+	                if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
 	                updateGoal(areaKey, 'daily', draft, dateStr);
+	                setAutosaveStatus('saved');
 	                setSaved(true);
 	                setIsDirty(false);
-	                setTimeout(() => setSaved(false), 1200);
+	                if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current);
+	                savedTimerRef.current = window.setTimeout(() => {
+	                    setSaved(false);
+	                    setAutosaveStatus('idle');
+	                }, 1200);
 	            };
-	
+
+	            const scheduleAutosave = () => {
+	                if (!autosaveEnabled) return;
+	                if (dailyEntry.completed) return;
+	                if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+	                setAutosaveStatus('pending');
+	                autosaveTimerRef.current = window.setTimeout(() => {
+	                    saveDraft();
+	                }, 900);
+	            };
+
+	            const applySuggestion = (text) => {
+	                setDraft(text || '');
+	                setIsDirty(true);
+	                scheduleAutosave();
+	            };
+
 	            if (dailyEntry.completed && !editing) {
 	                return (
 	                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
@@ -3047,14 +3097,52 @@
 	
 	            return (
 	                <div className="space-y-3">
+	                    {Array.isArray(suggestions) && suggestions.length > 0 && (
+	                        <div className="flex flex-wrap gap-2">
+	                            {suggestions
+	                                .filter(s => s && typeof s.text === 'string' && s.text.trim())
+	                                .slice(0, 4)
+	                                .map((s, idx) => (
+	                                    <button
+	                                        key={`${areaKey}:${dateStr}:sug:${idx}`}
+	                                        type="button"
+	                                        onClick={() => applySuggestion(s.text)}
+	                                        className="px-3 py-1.5 rounded-full text-xs font-bold border bg-slate-800/40 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all"
+	                                        title={s.text}
+	                                    >
+	                                        {s.label || 'Template'}
+	                                    </button>
+	                                ))}
+	                        </div>
+	                    )}
 	                    <textarea
 	                        value={draft}
 	                        onFocus={() => {
 	                            isFocusedRef.current = true;
 	                        }}
+	                        onKeyDown={(e) => {
+	                            if (!dailyEntry.completed && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+	                                e.preventDefault();
+	                                completeDaily(areaKey, dateStr, draft);
+	                                return;
+	                            }
+	                            if (e.key === 'Enter' && !e.shiftKey) {
+	                                e.preventDefault();
+	                                saveDraft();
+	                                return;
+	                            }
+	                            if (e.key === 'Escape') {
+	                                e.preventDefault();
+	                                setDraft(dailyEntry.text || '');
+	                                setIsDirty(false);
+	                                setAutosaveStatus('idle');
+	                                return;
+	                            }
+	                        }}
 	                        onChange={(e) => {
 	                            setDraft(e.target.value);
 	                            setIsDirty(true);
+	                            scheduleAutosave();
 	                        }}
 	                        onBlur={() => {
 	                            isFocusedRef.current = false;
@@ -3064,7 +3152,34 @@
 	                        className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg leading-relaxed resize-none shadow-inner"
 	                        rows="2"
 	                    />
-	
+
+	                    <div className="flex items-center justify-between gap-3 text-xs">
+	                        <div className="text-slate-500">
+	                            <span className="hidden sm:inline">Enter saves</span>
+	                            <span className="hidden sm:inline"> · </span>
+	                            <span className="hidden sm:inline">Shift+Enter newline</span>
+	                            <span className="hidden sm:inline"> · </span>
+	                            <span className="hidden sm:inline">Esc reverts</span>
+	                            {!dailyEntry.completed && (
+	                                <>
+	                                    <span className="hidden sm:inline"> · </span>
+	                                    <span className="hidden sm:inline">Ctrl/Cmd+Enter completes</span>
+	                                </>
+	                            )}
+	                        </div>
+	                        <button
+	                            type="button"
+	                            onClick={() => setAutosaveEnabled(v => !v)}
+	                            className={`px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all ${
+	                                autosaveEnabled
+	                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/15'
+	                                    : 'bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+	                            }`}
+	                        >
+	                            Autosave: {autosaveEnabled ? 'On' : 'Off'}
+	                        </button>
+	                    </div>
+
 	                    <div className="flex gap-3">
 	                        <button
 	                            type="button"
@@ -3076,7 +3191,7 @@
 	                                'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600'
 	                            }`}
 	                        >
-	                            {saved ? 'Saved' : 'Save'}
+	                            {autosaveStatus === 'pending' ? 'Saving…' : saved ? 'Saved' : isDirty && !autosaveEnabled ? 'Save*' : 'Save'}
 	                        </button>
 	                        {!dailyEntry.completed && (
 	                            <button
@@ -3311,14 +3426,38 @@
                                                     </span>
                                                 </div>
 
-	                                                <DailyOneThingEditor
-	                                                    areaKey={areaKey}
-	                                                    dateStr={selectedDate}
-	                                                    isToday={isToday}
-	                                                    dailyEntry={dailyEntry}
-	                                                    updateGoal={updateGoal}
-	                                                    completeDaily={completeDaily}
-	                                                />
+		                                                <DailyOneThingEditor
+		                                                    areaKey={areaKey}
+		                                                    dateStr={selectedDate}
+		                                                    isToday={isToday}
+		                                                    dailyEntry={dailyEntry}
+		                                                    suggestions={[
+		                                                        (() => {
+		                                                            const idx = area.goals && typeof area.goals.weeklyOneThingIndex === 'number' ? area.goals.weeklyOneThingIndex : 0;
+		                                                            const t = area.goals && Array.isArray(area.goals.weeklyGoals) && area.goals.weeklyGoals[idx] ? area.goals.weeklyGoals[idx].text : '';
+		                                                            return { label: 'Use Week', text: t || '' };
+		                                                        })(),
+		                                                        (() => {
+		                                                            const idx = area.goals && typeof area.goals.monthlyOneThingIndex === 'number' ? area.goals.monthlyOneThingIndex : 0;
+		                                                            const t = area.goals && Array.isArray(area.goals.monthlyGoals) && area.goals.monthlyGoals[idx] ? area.goals.monthlyGoals[idx].text : '';
+		                                                            return { label: 'Use Month', text: t || '' };
+		                                                        })(),
+		                                                        (() => {
+		                                                            const idx = area.goals && typeof area.goals.annualOneThingIndex === 'number' ? area.goals.annualOneThingIndex : 0;
+		                                                            const t = area.goals && Array.isArray(area.goals.annualGoals) && area.goals.annualGoals[idx] ? area.goals.annualGoals[idx].text : '';
+		                                                            return { label: 'Use Year', text: t || '' };
+		                                                        })(),
+		                                                        (() => {
+		                                                            const prev = new Date(`${selectedDate}T00:00:00`);
+		                                                            prev.setDate(prev.getDate() - 1);
+		                                                            const prevStr = getLocalDateString(prev);
+		                                                            const t = area.goals && area.goals.dailyHistory && area.goals.dailyHistory[prevStr] ? area.goals.dailyHistory[prevStr].text : '';
+		                                                            return { label: 'Copy Yesterday', text: t || '' };
+		                                                        })()
+		                                                    ]}
+		                                                    updateGoal={updateGoal}
+		                                                    completeDaily={completeDaily}
+		                                                />
 	                                            </div>
 	                                        </div>
 	                                    </div>
