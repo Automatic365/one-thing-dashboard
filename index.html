@@ -426,14 +426,17 @@
             appId: "1:574870247678:web:7f48eb160d11cd5444edaf"
         };
 
-        // Check if Firebase is configured
-        const isFirebaseConfigured = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
+        // Check if Firebase is configured and can run in this environment.
+        // Firebase Auth/Firestore require http(s) or localhost; file:// commonly breaks auth.
+        const isFirebaseConfigured = !!FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
+        const isFirebaseEnvSupported = typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:';
+        const isFirebaseEnabled = isFirebaseConfigured && isFirebaseEnvSupported;
 
         // Initialize Firebase only if configured
         let db = null;
         let auth = null;
 
-        if (isFirebaseConfigured) {
+        if (isFirebaseEnabled) {
             try {
                 firebase.initializeApp(FIREBASE_CONFIG);
                 db = firebase.firestore();
@@ -602,13 +605,20 @@
             lastAnnualReview: null   // ISO date of last annual review
         });
 
-        // Migrate old data format to new multi-goal format
-        const migrateData = (oldData) => {
-            // REPAIR: Check for broken V7 data (V7 flag but V4/V6 structure)
-            // This happens if V1 fallback returned V7 state with V4 structure
-            if (oldData.version === 7) {
-                let needsRepair = false;
-                const activeAreas = Object.keys(oldData.lifeAreas || {});
+	        // Migrate old data format to new multi-goal format
+	        const migrateData = (oldData) => {
+	            if (!oldData || typeof oldData !== 'object') {
+	                return getInitialState();
+	            }
+	
+	            const parsedVersion = Number.parseInt(oldData.version, 10);
+	            const version = Number.isFinite(parsedVersion) ? parsedVersion : 1;
+	
+	            // REPAIR: Check for broken V7 data (V7 flag but V4/V6 structure)
+	            // This happens if V1 fallback returned V7 state with V4 structure
+	            if (version === 7) {
+	                let needsRepair = false;
+	                const activeAreas = Object.keys(oldData.lifeAreas || {});
                 
                 // Check if any area has 'daily' goal but no 'dailyHistory'
                 for (const key of activeAreas) {
@@ -866,20 +876,111 @@
             return getInitialState();
         };
 
-        const saveToLocalStorage = (state) => {
-            localStorage.setItem('oneThingApp', JSON.stringify(state));
-        };
+	        const saveToLocalStorage = (state) => {
+	            localStorage.setItem('oneThingApp', JSON.stringify(state));
+	        };
+	
+	        const normalizeForCompare = (value) => {
+	            const seen = new WeakSet();
+	
+	            const normalize = (input) => {
+	                if (input === null || input === undefined) return input;
+	                const inputType = typeof input;
+	                if (inputType === 'string' || inputType === 'number' || inputType === 'boolean') return input;
+	
+	                if (input && typeof input.toMillis === 'function') return { __type: 'timestamp', ms: input.toMillis() };
+	                if (input instanceof Date) return { __type: 'date', iso: input.toISOString() };
+	
+	                if (Array.isArray(input)) return input.map(normalize);
+	
+	                if (inputType === 'object') {
+	                    if (seen.has(input)) return { __type: 'cycle' };
+	                    seen.add(input);
+	
+	                    const out = {};
+	                    Object.keys(input).sort().forEach((key) => {
+	                        out[key] = normalize(input[key]);
+	                    });
+	                    return out;
+	                }
+	
+	                return String(input);
+	            };
+	
+	            return normalize(value);
+	        };
+	
+	        const stableStringify = (value) => JSON.stringify(normalizeForCompare(value));
+	
+	        const firstDiffPath = (a, b) => {
+	            const aN = normalizeForCompare(a);
+	            const bN = normalizeForCompare(b);
+	
+	            const walk = (left, right, path) => {
+	                if (left === right) return null;
+	                if (left === null || right === null || left === undefined || right === undefined) return path;
+	
+	                const leftIsArray = Array.isArray(left);
+	                const rightIsArray = Array.isArray(right);
+	                if (leftIsArray !== rightIsArray) return path;
+	
+	                const leftType = typeof left;
+	                const rightType = typeof right;
+	                if (leftType !== rightType) return path;
+	
+	                if (leftType !== 'object') return path;
+	
+	                if (leftIsArray) {
+	                    if (left.length !== right.length) return `${path}.length`;
+	                    for (let i = 0; i < left.length; i++) {
+	                        const diff = walk(left[i], right[i], `${path}[${i}]`);
+	                        if (diff) return diff;
+	                    }
+	                    return null;
+	                }
+	
+	                const leftKeys = Object.keys(left);
+	                const rightKeys = Object.keys(right);
+	                if (leftKeys.length !== rightKeys.length) return `${path}.__keys`;
+	
+	                for (const key of leftKeys) {
+	                    if (!Object.prototype.hasOwnProperty.call(right, key)) return `${path}.${key}`;
+	                    const diff = walk(left[key], right[key], path ? `${path}.${key}` : key);
+	                    if (diff) return diff;
+	                }
+	                return null;
+	            };
+	
+	            return walk(aN, bN, '');
+	        };
+	
+	        const isBrokenV7Data = (data) => {
+	            if (!data || typeof data !== 'object') return false;
+	            const parsedVersion = Number.parseInt(data.version, 10);
+	            const version = Number.isFinite(parsedVersion) ? parsedVersion : null;
+	            if (version !== 7) return false;
+	            const areas = data.lifeAreas && typeof data.lifeAreas === 'object' ? Object.keys(data.lifeAreas) : [];
+	            for (const key of areas) {
+	                const goals = data.lifeAreas[key] && data.lifeAreas[key].goals;
+	                if (goals && goals.daily && !goals.dailyHistory) return true;
+	            }
+	            return false;
+	        };
 
         // ==========================================
         // MAIN APP COMPONENT
         // ==========================================
-        function App() {
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [state, setState] = useState(getInitialState);
-            const [currentView, setCurrentView] = useState('dashboard');
-            const [syncing, setSyncing] = useState(false);
-            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
+	        function App() {
+	            const [user, setUser] = useState(null);
+	            const [loading, setLoading] = useState(true);
+	            const [state, setState] = useState(getInitialState);
+	            const [currentView, setCurrentView] = useState('dashboard');
+	            const [syncing, setSyncing] = useState(false);
+	            const [syncError, setSyncError] = useState(null);
+	            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
+	            const lastMigrationWriteRef = React.useRef(null);
+	            const migrationWriteAttemptsRef = React.useRef(0);
+	            const attemptedVersionFixRef = React.useRef(false);
 
             // Helper to get local date string YYYY-MM-DD
             const getLocalDateString = () => {
@@ -890,7 +991,7 @@
 
             // Auth state listener
             useEffect(() => {
-                if (!isFirebaseConfigured || !auth) {
+                if (!isFirebaseEnabled || !auth) {
                     setLoading(false);
                     setState(loadFromLocalStorage());
                     return;
@@ -908,7 +1009,7 @@
             useEffect(() => {
                 if (!user || !db) {
                     // Use localStorage when offline or not authenticated
-                    if (!isFirebaseConfigured) {
+                    if (!isFirebaseEnabled) {
                         setState(loadFromLocalStorage());
                     }
                     return;
@@ -917,57 +1018,94 @@
                 setSyncing(true);
                 const docRef = db.collection('users').doc(user.uid);
 
-                const unsubscribe = docRef.onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const originalData = doc.data();
-                        const data = migrateData(originalData);
-                        setState(data);
-                        
-                        // Check if migration or repair happened
-                        const versionChanged = data.version !== originalData.version;
-                        
-                        // Check if structural repair happened (V7 broken -> V7 fixed)
-                        // Simple check: original didn't have dailyHistory, new one does
-                        let structuralRepair = false;
-                        if (data.version === 7 && originalData.version === 7) {
-                            const sampleKey = Object.keys(data.lifeAreas)[0];
-                            if (sampleKey && !originalData.lifeAreas[sampleKey]?.goals?.dailyHistory && data.lifeAreas[sampleKey]?.goals?.dailyHistory) {
-                                structuralRepair = true;
-                            }
-                        }
+	                const unsubscribe = docRef.onSnapshot((doc) => {
+	                    if (doc.exists) {
+	                        const originalData = doc.data();
+	                        const brokenV7 = isBrokenV7Data(originalData);
+	                        const originalStr = stableStringify(originalData);
+	                        const data = migrateData(originalData);
+	                        setState(data);
 
-                        if (versionChanged || structuralRepair) {
-                            console.log("Saving migrated/repaired data...");
-                            docRef.set(data).catch(err => {
-                                console.error("Error saving migrated data:", err);
-                            });
-                        }
-                    } else {
-                        // First time user - migrate from localStorage
-                        const localData = loadFromLocalStorage();
-                        docRef.set(localData).then(() => {
-                            setState(localData);
-                        });
-                    }
-                    setSyncing(false);
-                }, (error) => {
-                    console.error("Firestore sync error:", error);
-                    setSyncing(false);
-                });
+	                        const dataStr = stableStringify(data);
+	                        const originalNoVersionStr = stableStringify(
+	                            (originalData && typeof originalData === 'object') ? { ...originalData, version: 0 } : originalData
+	                        );
+	                        const dataNoVersionStr = stableStringify({ ...data, version: 0 });
+	                        const onlyVersionDiffers = originalNoVersionStr === dataNoVersionStr;
+	                        const shouldPersistMigration =
+	                            !doc.metadata.hasPendingWrites &&
+	                            originalStr !== dataStr;
+
+	                        if (!shouldPersistMigration) {
+	                            migrationWriteAttemptsRef.current = 0;
+	                        }
+
+	                        if (shouldPersistMigration) {
+	                            migrationWriteAttemptsRef.current += 1;
+	                            if (migrationWriteAttemptsRef.current > 10) {
+	                                console.warn(
+	                                    "Migration writeback disabled to prevent an infinite loop. " +
+	                                    "If you see this, please export your data and share the console logs."
+	                                );
+	                                setSyncing(false);
+	                                return;
+	                            }
+
+	                            if (lastMigrationWriteRef.current !== dataStr) {
+	                                lastMigrationWriteRef.current = dataStr;
+	                                const diff = firstDiffPath(originalData, data);
+	                                if (diff) console.log("Migration diff at:", diff);
+	                                console.log("Saving migrated/repaired data...");
+	                                if (onlyVersionDiffers) {
+	                                    if (!attemptedVersionFixRef.current) {
+	                                        attemptedVersionFixRef.current = true;
+	                                        docRef.set({ version: data.version }, { merge: true }).catch(err => {
+	                                            console.error("Error saving migrated version:", err);
+	                                            setSyncError(err && err.message ? err.message : String(err));
+	                                        });
+	                                    } else {
+	                                        // Don’t keep writing forever if some other client keeps storing version as a string.
+	                                        // We can still run the app using the migrated in-memory state.
+	                                    }
+	                                } else {
+	                                    // For broken v7 documents, do a full replace so the repaired structure actually persists.
+	                                    const writePromise = brokenV7 ? docRef.set(data) : docRef.set(data, { merge: true });
+	                                    writePromise.catch(err => {
+	                                        console.error("Error saving migrated data:", err);
+	                                        setSyncError(err && err.message ? err.message : String(err));
+	                                    });
+	                                }
+	                            }
+	                        }
+	                    } else {
+	                        // First time user - migrate from localStorage
+	                        const localData = loadFromLocalStorage();
+	                        docRef.set(localData).then(() => {
+	                            setState(localData);
+	                        });
+	                    }
+	                    setSyncing(false);
+	                }, (error) => {
+	                    console.error("Firestore sync error:", error);
+	                    setSyncing(false);
+	                });
 
                 return () => unsubscribe();
             }, [user]);
 
             // Save to Firestore or localStorage
-            const saveState = useCallback((newState) => {
-                setState(newState);
+	            const saveState = useCallback((newState) => {
+	                setState(newState);
 
-                if (user && db) {
-                    db.collection('users').doc(user.uid).set(newState);
-                } else {
-                    saveToLocalStorage(newState);
-                }
-            }, [user]);
+	                if (user && db) {
+	                    db.collection('users').doc(user.uid).set(newState, { merge: true }).catch((err) => {
+	                        console.error("Error saving state:", err);
+	                        setSyncError(err && err.message ? err.message : String(err));
+	                    });
+	                } else {
+	                    saveToLocalStorage(newState);
+	                }
+	            }, [user]);
 
             // Toggle life area active state
             const toggleLifeArea = (areaKey) => {
@@ -1379,11 +1517,11 @@
                 );
             }
 
-            if (!user && isFirebaseConfigured && auth) {
+            if (!user && isFirebaseEnabled && auth) {
                 return <AuthScreen />;
             }
 
-            if (!isFirebaseConfigured) {
+            if (!isFirebaseEnabled) {
                 return (
                     <div className="min-h-screen bg-slate-900 text-slate-50">
                         <div className="max-w-4xl mx-auto px-4 py-16">
@@ -1392,11 +1530,14 @@
                                     <span className="text-9xl">⚠️</span>
                                 </div>
                                 <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center">
-                                    <span className="mr-3 text-3xl">⚠️</span> Firebase Not Configured
+                                    <span className="mr-3 text-3xl">⚠️</span>
+                                    {isFirebaseConfigured ? 'Firebase Disabled (file://)' : 'Firebase Not Configured'}
                                 </h2>
                                 <p className="text-slate-300 mb-4 leading-relaxed">
                                     Your app is currently using <strong className="text-white">localStorage</strong> (local-only storage).
-                                    To sync across devices, you need to set up Firebase.
+                                    {isFirebaseConfigured
+                                        ? ' To use Firebase sync, run this app from http://localhost (or deploy it) instead of opening the file directly.'
+                                        : ' To sync across devices, you need to set up Firebase.'}
                                 </p>
                                 <p className="text-slate-300 mb-6 leading-relaxed">
                                     <strong>Don't worry!</strong> Your app still works perfectly on this device.
@@ -1487,12 +1628,37 @@
                 );
             }
 
-            return (
-                <div className="min-h-screen">
-                    <Navigation
-                        currentView={currentView}
-                        setCurrentView={setCurrentView}
-                        user={user}
+	            return (
+	                <div className="min-h-screen">
+	                    {syncError && (
+	                        <div className="max-w-7xl mx-auto px-4 pt-4">
+	                            <div className="glass border border-red-500/40 rounded-xl p-4 flex items-start justify-between gap-4">
+	                                <div>
+	                                    <div className="font-bold text-red-300">Cloud sync error</div>
+	                                    <div className="text-sm text-slate-200/80 font-mono mt-1 break-all">{syncError}</div>
+	                                </div>
+	                                <button
+	                                    onClick={() => setSyncError(null)}
+	                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"
+	                                >
+	                                    Dismiss
+	                                </button>
+	                            </div>
+	                        </div>
+	                    )}
+	
+	                    {showDebug && (
+	                        <div className="fixed bottom-4 right-4 z-50 max-w-sm glass border border-slate-700/60 rounded-xl p-3 text-xs font-mono text-slate-200">
+	                            <div><span className="text-slate-400">syncing:</span> {String(syncing)}</div>
+	                            <div><span className="text-slate-400">uid:</span> {user ? user.uid : 'null'}</div>
+	                            <div><span className="text-slate-400">activeAreas:</span> {activeAreas.join(', ') || '(none)'}</div>
+	                        </div>
+	                    )}
+	
+	                    <Navigation
+	                        currentView={currentView}
+	                        setCurrentView={setCurrentView}
+	                        user={user}
                         handleLogout={handleLogout}
                         syncing={syncing}
                     />

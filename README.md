@@ -10,6 +10,8 @@ A complete web-based productivity app based on "The ONE Thing" by Gary Keller an
 3. It will open in your default web browser
 4. Start using the app immediately!
 
+**Note:** If you're using Firebase sync, open the app via `http://localhost` (Option 2) or deploy it (Firebase Auth typically won't work from `file://`).
+
 ### Option 2: Using Python (If double-click doesn't work)
 1. Open Terminal (Mac) or Command Prompt (Windows)
 2. Navigate to this folder:
