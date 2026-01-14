@@ -1184,14 +1184,42 @@
 	            const attemptedVersionFixRef = React.useRef(false);
 	            const stateRef = React.useRef(state);
 	
-	            React.useEffect(() => {
-	                stateRef.current = state;
-	            }, [state]);
+		            React.useEffect(() => {
+		                stateRef.current = state;
+		            }, [state]);
 
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = () => {
-                const d = new Date();
-                const offset = d.getTimezoneOffset() * 60000;
+		            const formatTimeAgo = (isoString) => {
+		                if (!isoString) return '—';
+		                const ms = Date.parse(isoString);
+		                if (!Number.isFinite(ms)) return '—';
+		                const deltaSec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+		                if (deltaSec < 5) return 'just now';
+		                if (deltaSec < 60) return `${deltaSec}s ago`;
+		                const deltaMin = Math.floor(deltaSec / 60);
+		                if (deltaMin < 60) return `${deltaMin}m ago`;
+		                const deltaHr = Math.floor(deltaMin / 60);
+		                if (deltaHr < 24) return `${deltaHr}h ago`;
+		                const deltaDay = Math.floor(deltaHr / 24);
+		                return `${deltaDay}d ago`;
+		            };
+
+		            const formatShortDateTime = (isoString) => {
+		                if (!isoString) return '—';
+		                const ms = Date.parse(isoString);
+		                if (!Number.isFinite(ms)) return '—';
+		                return new Date(ms).toLocaleString(undefined, {
+		                    year: 'numeric',
+		                    month: 'short',
+		                    day: '2-digit',
+		                    hour: '2-digit',
+		                    minute: '2-digit'
+		                });
+		            };
+
+	            // Helper to get local date string YYYY-MM-DD
+	            const getLocalDateString = () => {
+	                const d = new Date();
+	                const offset = d.getTimezoneOffset() * 60000;
                 return new Date(d.getTime() - offset).toISOString().split('T')[0];
             };
 
@@ -1815,7 +1843,17 @@
                                 </a>
                             </div>
 
-                            <Navigation currentView={currentView} setCurrentView={setCurrentView} user={null} handleLogout={null} syncing={false} />
+	                            <Navigation
+	                                currentView={currentView}
+	                                setCurrentView={setCurrentView}
+	                                user={null}
+	                                handleLogout={null}
+	                                syncing={false}
+	                                lastLocalSaveAt={lastLocalSaveAt}
+	                                lastCloudSyncAt={lastCloudSyncAt}
+	                                formatTimeAgo={formatTimeAgo}
+	                                formatShortDateTime={formatShortDateTime}
+	                            />
 
                             <main className="mt-8">
                                 {currentView === 'dashboard' && (
@@ -1939,13 +1977,17 @@
 	                        </div>
 	                    )}
 	
-	                    <Navigation
-	                        currentView={currentView}
-	                        setCurrentView={setCurrentView}
-	                        user={user}
-                        handleLogout={handleLogout}
-                        syncing={syncing}
-                    />
+		                    <Navigation
+		                        currentView={currentView}
+		                        setCurrentView={setCurrentView}
+		                        user={user}
+	                        handleLogout={handleLogout}
+	                        syncing={syncing}
+	                        lastLocalSaveAt={lastLocalSaveAt}
+	                        lastCloudSyncAt={lastCloudSyncAt}
+	                        formatTimeAgo={formatTimeAgo}
+	                        formatShortDateTime={formatShortDateTime}
+	                    />
 
                     <main className="max-w-7xl mx-auto px-4 py-8">
                         {currentView === 'dashboard' && (
@@ -2667,11 +2709,21 @@
         // ==========================================
         // NAVIGATION
         // ==========================================
-	        function Navigation({ currentView, setCurrentView, user, handleLogout, syncing }) {
-            const navItems = [
-                { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
-                { id: 'goals', label: 'Goals', icon: '📋' },
-                { id: 'timeblock', label: 'Time Blocking', icon: '⏰' },
+		        function Navigation({
+		            currentView,
+		            setCurrentView,
+		            user,
+		            handleLogout,
+		            syncing,
+		            lastLocalSaveAt,
+		            lastCloudSyncAt,
+		            formatTimeAgo,
+		            formatShortDateTime
+		        }) {
+	            const navItems = [
+	                { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
+	                { id: 'goals', label: 'Goals', icon: '📋' },
+	                { id: 'timeblock', label: 'Time Blocking', icon: '⏰' },
                 { id: 'progress', label: 'Progress', icon: '📊' },
                 { id: 'reflect', label: 'Reflect', icon: '💭' },
                 { id: 'settings', label: 'Settings', icon: '⚙️' }
@@ -2694,12 +2746,17 @@
 	                                        Syncing
 	                                    </div>
 	                                )}
-	                                {user && !syncing && user.email && (
-	                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-200 text-xs border border-emerald-500/20 hidden sm:block">
-	                                        Cloud
-	                                    </div>
-	                                )}
-	                            </div>
+		                                {user && !syncing && user.email && (
+		                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-200 text-xs border border-emerald-500/20 hidden sm:block">
+		                                        Cloud
+		                                    </div>
+		                                )}
+		                                {!user && !syncing && (
+		                                    <div className="ml-2 px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-200 text-xs border border-slate-700/60 hidden sm:block">
+		                                        Local
+		                                    </div>
+		                                )}
+		                            </div>
 
                             <div className="flex items-center space-x-1">
                                 {navItems.map(item => {
@@ -2719,20 +2776,36 @@
                                     );
                                 })}
 
-                                {user && handleLogout && (
-                                    <button
-                                        onClick={handleLogout}
-                                        className="ml-4 px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
-                                    >
-                                        Logout
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </nav>
-            );
-        }
+	                                {user && handleLogout && (
+	                                    <button
+	                                        onClick={handleLogout}
+	                                        className="ml-4 px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
+	                                    >
+	                                        Logout
+	                                    </button>
+	                                )}
+	                            </div>
+	                        </div>
+	                        <div className="pb-3 -mt-3 hidden md:flex items-center gap-4 text-xs text-slate-400">
+	                            <div>
+	                                <span className="text-slate-500">Last save:</span>{' '}
+	                                <span className="text-slate-300" title={formatShortDateTime ? formatShortDateTime(lastLocalSaveAt) : undefined}>
+	                                    {formatTimeAgo ? formatTimeAgo(lastLocalSaveAt) : (lastLocalSaveAt || '—')}
+	                                </span>
+	                            </div>
+	                            {user && (
+	                                <div>
+	                                    <span className="text-slate-500">Last sync:</span>{' '}
+	                                    <span className="text-slate-300" title={formatShortDateTime ? formatShortDateTime(lastCloudSyncAt) : undefined}>
+	                                        {formatTimeAgo ? formatTimeAgo(lastCloudSyncAt) : (lastCloudSyncAt || '—')}
+	                                    </span>
+	                                </div>
+	                            )}
+	                        </div>
+	                    </div>
+	                </nav>
+	            );
+	        }
 
 	        // ==========================================
 	        // DASHBOARD
