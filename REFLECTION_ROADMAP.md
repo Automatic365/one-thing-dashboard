@@ -131,6 +131,7 @@ These items are foundational and help prevent regressions like data wipes/revert
 ### Features
 - Monthly calendar layout in Progress tab ✅
 - Visual accountability tracking (completed days highlighted) ✅
+- Set daily goals directly from the calendar (multi-area, tagged to life areas) ✅
 - Ability to add notes/context to specific days ✅
 - Click a day for details (completions + note) ✅
 

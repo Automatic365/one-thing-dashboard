@@ -34,6 +34,7 @@ Use this before deploying to Hosting to catch the “wipe/revert” class of bug
 - Date switching: historical completion entries render correctly.
 - Filters: switching between `All` and a specific life area updates totals and charts correctly.
 - Month calendar: clicking a day shows details and notes (create/edit persists after refresh).
+- Month calendar: add/edit daily goals for multiple life areas in the day modal; saved goals appear back in the month cell.
 - Streaks/sparkline: per-area streaks and the trend sparkline render without errors.
 
 ## Settings
