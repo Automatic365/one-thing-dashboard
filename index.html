@@ -610,6 +610,7 @@
 	                    goals: createEmptyGoals(),
 	                    completions: [], // Deprecated in v7, kept for safety during migration
 	                    obstaclesSolutions: [],
+	                    obstacleWeeklyFocus: null,
 	                    reviews: {
 	                        monthly: [],
 	                        quarterly: []
@@ -945,9 +946,17 @@
 	            Object.keys(LIFE_AREAS).forEach((key) => {
 	                if (!outAreas[key]) return;
 	                const area = outAreas[key];
-	                if (!Array.isArray(area.obstaclesSolutions)) {
-	                    outAreas[key] = { ...area, obstaclesSolutions: [] };
-	                }
+	                const obstaclesSolutions = Array.isArray(area.obstaclesSolutions) ? area.obstaclesSolutions : [];
+	                const normalized = obstaclesSolutions.map((item) => {
+	                    if (!item || typeof item !== 'object') return item;
+	                    if (Array.isArray(item.attempts)) return item;
+	                    return { ...item, attempts: [] };
+	                });
+	                outAreas[key] = {
+	                    ...area,
+	                    obstaclesSolutions: normalized,
+	                    obstacleWeeklyFocus: (area.obstacleWeeklyFocus !== undefined) ? area.obstacleWeeklyFocus : null
+	                };
 	            });
 	            next.lifeAreas = outAreas;
 	            return next;
@@ -1111,7 +1120,11 @@
 		                    createdAt: new Date().toISOString(),
 		                    triedCount: 2,
 		                    workedCount: 2,
-		                    lastTriedAt: new Date().toISOString()
+		                    lastTriedAt: new Date().toISOString(),
+		                    attempts: [
+		                        { date: shiftDateStr(todayStr, -1), worked: true, createdAt: new Date().toISOString() },
+		                        { date: shiftDateStr(todayStr, -3), worked: true, createdAt: new Date().toISOString() }
+		                    ]
 		                }
 		            ];
 
@@ -1868,7 +1881,8 @@
 	                    createdAt: new Date().toISOString(),
 	                    triedCount: 0,
 	                    workedCount: 0,
-	                    lastTriedAt: null
+	                    lastTriedAt: null,
+	                    attempts: []
 	                };
 
 	                const newState = {
@@ -1884,16 +1898,22 @@
 	                saveState(newState);
 	            };
 
-	            const recordObstacleAttempt = (areaKey, entryId, worked) => {
+	            const recordObstacleAttempt = (areaKey, entryId, worked, dateStr = null) => {
 	                if (!areaKey || !entryId || !state.lifeAreas[areaKey]) return;
 	                const area = state.lifeAreas[areaKey];
 	                const list = Array.isArray(area.obstaclesSolutions) ? area.obstaclesSolutions : [];
 	                const nowIso = new Date().toISOString();
+	                const attemptDate = dateStr || getLocalDateString();
 	                const nextList = list.map((item) => {
 	                    if (!item || item.id !== entryId) return item;
 	                    const tried = (item.triedCount || 0) + 1;
 	                    const workedCount = (item.workedCount || 0) + (worked ? 1 : 0);
-	                    return { ...item, triedCount: tried, workedCount, lastTriedAt: nowIso };
+	                    const attempts = Array.isArray(item.attempts) ? item.attempts : [];
+	                    const nextAttempts = [
+	                        { date: attemptDate, worked: Boolean(worked), createdAt: nowIso },
+	                        ...attempts
+	                    ].slice(0, 200);
+	                    return { ...item, triedCount: tried, workedCount, lastTriedAt: nowIso, attempts: nextAttempts };
 	                });
 
 	                const newState = {
@@ -1903,6 +1923,35 @@
 	                        [areaKey]: {
 	                            ...area,
 	                            obstaclesSolutions: nextList
+	                        }
+	                    }
+	                };
+	                saveState(newState);
+	            };
+
+	            const getWeekKey = (dateObj = new Date()) => {
+	                const d = new Date(dateObj);
+	                d.setHours(0, 0, 0, 0);
+	                // Thursday in current week decides the year.
+	                d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+	                const week1 = new Date(d.getFullYear(), 0, 4);
+	                const week = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+	                const year = d.getFullYear();
+	                return `${year}-W${String(week).padStart(2, '0')}`;
+	            };
+
+	            const setObstacleWeeklyFocus = (areaKey, entryId) => {
+	                if (!areaKey || !state.lifeAreas[areaKey]) return;
+	                const area = state.lifeAreas[areaKey];
+	                const weekKey = getWeekKey(new Date());
+	                const focus = entryId ? { weekKey, entryId, setAt: new Date().toISOString() } : null;
+	                const newState = {
+	                    ...state,
+	                    lifeAreas: {
+	                        ...state.lifeAreas,
+	                        [areaKey]: {
+	                            ...area,
+	                            obstacleWeeklyFocus: focus
 	                        }
 	                    }
 	                };
@@ -2299,6 +2348,9 @@
 	                                        addObstacleSolution={addObstacleSolution}
 	                                        recordObstacleAttempt={recordObstacleAttempt}
 	                                        deleteObstacleSolution={deleteObstacleSolution}
+	                                        setObstacleWeeklyFocus={setObstacleWeeklyFocus}
+	                                        dayNotes={state.dayNotes}
+	                                        setDayNote={setDayNote}
 	                                        toggleLifeArea={toggleLifeArea}
 	                                    />
 	                                )}
@@ -2503,6 +2555,9 @@
 	                                addObstacleSolution={addObstacleSolution}
 	                                recordObstacleAttempt={recordObstacleAttempt}
 	                                deleteObstacleSolution={deleteObstacleSolution}
+	                                setObstacleWeeklyFocus={setObstacleWeeklyFocus}
+	                                dayNotes={state.dayNotes}
+	                                setDayNote={setDayNote}
 	                                toggleLifeArea={toggleLifeArea}
 	                            />
 	                        )}
@@ -2677,6 +2732,9 @@
             addObstacleSolution,
             recordObstacleAttempt,
             deleteObstacleSolution,
+            setObstacleWeeklyFocus,
+            dayNotes,
+            setDayNote,
             toggleLifeArea 
         }) {
             const [reflectionType, setReflectionType] = React.useState('monthly'); // 'monthly' | 'quarterly' | 'obstacles'
@@ -2756,6 +2814,9 @@
                             addObstacleSolution={addObstacleSolution}
                             recordObstacleAttempt={recordObstacleAttempt}
                             deleteObstacleSolution={deleteObstacleSolution}
+                            setObstacleWeeklyFocus={setObstacleWeeklyFocus}
+                            dayNotes={dayNotes}
+                            setDayNote={setDayNote}
                         />
                     ) : (
                         <ReflectionHistoryBrowser
@@ -3090,10 +3151,15 @@
             );
         }
 
-        function ObstaclesSolutionsTracker({ lifeAreas, activeAreas, addObstacleSolution, recordObstacleAttempt, deleteObstacleSolution }) {
+        function ObstaclesSolutionsTracker({ lifeAreas, activeAreas, addObstacleSolution, recordObstacleAttempt, deleteObstacleSolution, setObstacleWeeklyFocus, dayNotes = {}, setDayNote }) {
             const [scopeArea, setScopeArea] = React.useState('all'); // 'all' | areaKey
             const [newObstacle, setNewObstacle] = React.useState('');
             const [newSolution, setNewSolution] = React.useState('');
+            const [attemptDate, setAttemptDate] = React.useState(() => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            });
 
             React.useEffect(() => {
                 if (scopeArea === 'all') return;
@@ -3101,6 +3167,24 @@
             }, [scopeArea, activeAreas]);
 
             const normalize = (s) => String(s || '').trim().toLowerCase();
+
+            const getWeekKey = (dateStr) => {
+                const [y, m, d] = String(dateStr).split('-').map(Number);
+                const dateObj = new Date(y, (m || 1) - 1, d || 1);
+                dateObj.setHours(0, 0, 0, 0);
+                dateObj.setDate(dateObj.getDate() + 3 - ((dateObj.getDay() + 6) % 7));
+                const week1 = new Date(dateObj.getFullYear(), 0, 4);
+                const week = 1 + Math.round(((dateObj - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+                const year = dateObj.getFullYear();
+                return `${year}-W${String(week).padStart(2, '0')}`;
+            };
+
+            const todayStr = (() => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            })();
+            const thisWeekKey = getWeekKey(todayStr);
 
             const reviewPairs = [];
             activeAreas.forEach((areaKey) => {
@@ -3167,6 +3251,8 @@
                 ? lifeAreas[scopeArea].obstaclesSolutions
                 : [];
             const pinnedSet = new Set(pinned.map((p) => normalize(p && p.obstacle)));
+            const focus = scopeArea !== 'all' && lifeAreas[scopeArea] ? lifeAreas[scopeArea].obstacleWeeklyFocus : null;
+            const focusEntryId = focus && focus.weekKey === thisWeekKey ? focus.entryId : null;
 
             return (
                 <div className="space-y-8 fade-in">
@@ -3253,11 +3339,23 @@
                                         const tried = item.triedCount || 0;
                                         const worked = item.workedCount || 0;
                                         const rate = tried > 0 ? Math.round((worked / tried) * 100) : null;
+                                        const attempts = Array.isArray(item.attempts) ? item.attempts : [];
+                                        const thisWeekAttempts = attempts.filter((a) => a && a.date && getWeekKey(a.date) === thisWeekKey);
+                                        const thisWeekTried = thisWeekAttempts.length;
+                                        const thisWeekWorked = thisWeekAttempts.filter((a) => a.worked).length;
+                                        const isFocused = focusEntryId && item.id === focusEntryId;
                                         return (
                                             <div key={item.id} className="rounded-2xl border border-slate-700/60 bg-slate-800/30 p-5">
                                                 <div className="flex items-start justify-between gap-4">
                                                     <div className="flex-1">
-                                                        <div className="text-white font-bold">{item.obstacle}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="text-white font-bold">{item.obstacle}</div>
+                                                            {isFocused && (
+                                                                <span className="text-[10px] font-black px-2 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/30 text-emerald-200">
+                                                                    Focus this week
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         {item.solution && (
                                                             <div className="text-slate-300 mt-2">
                                                                 <span className="text-slate-500 font-mono text-xs mr-2">Solution</span>
@@ -3272,6 +3370,10 @@
                                                                 </>
                                                             )}
                                                         </div>
+                                                        <div className="text-xs text-slate-500 mt-2">
+                                                            This week: <span className="text-slate-300 font-mono">{thisWeekTried}</span> tries ·{' '}
+                                                            <span className="text-slate-300 font-mono">{thisWeekWorked}</span> worked
+                                                        </div>
                                                     </div>
                                                     <button
                                                         type="button"
@@ -3285,21 +3387,94 @@
                                                         Delete
                                                     </button>
                                                 </div>
-                                                <div className="flex flex-wrap gap-2 mt-4">
+                                                <div className="flex flex-wrap items-center gap-2 mt-4">
                                                     <button
                                                         type="button"
-                                                        onClick={() => typeof recordObstacleAttempt === 'function' && recordObstacleAttempt(scopeArea, item.id, true)}
+                                                        onClick={() => typeof setObstacleWeeklyFocus === 'function' && setObstacleWeeklyFocus(scopeArea, item.id)}
+                                                        className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                                                            isFocused
+                                                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                                                                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                                                        }`}
+                                                    >
+                                                        {isFocused ? 'Focused' : 'Set focus'}
+                                                    </button>
+                                                    {isFocused && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => typeof setObstacleWeeklyFocus === 'function' && setObstacleWeeklyFocus(scopeArea, null)}
+                                                            className="px-4 py-2 rounded-xl bg-slate-900/30 hover:bg-slate-800 text-slate-300 border border-slate-700 text-sm font-bold"
+                                                        >
+                                                            Clear focus
+                                                        </button>
+                                                    )}
+                                                    <input
+                                                        type="date"
+                                                        value={attemptDate}
+                                                        onChange={(e) => setAttemptDate(e.target.value)}
+                                                        className="px-3 py-2 rounded-xl bg-slate-900/40 border border-slate-700 text-slate-200 text-sm"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => typeof recordObstacleAttempt === 'function' && recordObstacleAttempt(scopeArea, item.id, true, attemptDate)}
                                                         className="px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30 text-sm font-bold"
                                                     >
-                                                        Tried (worked)
+                                                        Log worked
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => typeof recordObstacleAttempt === 'function' && recordObstacleAttempt(scopeArea, item.id, false)}
+                                                        onClick={() => typeof recordObstacleAttempt === 'function' && recordObstacleAttempt(scopeArea, item.id, false, attemptDate)}
                                                         className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-bold"
                                                     >
-                                                        Tried (didn’t)
+                                                        Log didn’t
                                                     </button>
+                                                </div>
+
+                                                <div className="mt-5">
+                                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                                                        Timeline
+                                                    </div>
+                                                    {attempts.length === 0 ? (
+                                                        <div className="text-xs text-slate-500 border border-slate-800/60 rounded-xl p-4 bg-slate-900/20">
+                                                            No attempts logged yet.
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            {attempts.slice(0, 8).map((a, idx) => {
+                                                                const note = a && a.date && dayNotes && dayNotes[a.date] ? dayNotes[a.date].text : '';
+                                                                return (
+                                                                    <div key={`${item.id}:att:${idx}`} className="rounded-xl border border-slate-700/60 bg-slate-900/20 p-3">
+                                                                        <div className="flex items-start justify-between gap-3">
+                                                                            <div>
+                                                                                <div className="text-sm text-slate-200 font-mono">{a.date}</div>
+                                                                                <div className={`text-xs font-bold mt-1 ${a.worked ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                                                                    {a.worked ? 'Worked' : 'Didn’t work'}
+                                                                                </div>
+                                                                                {note && (
+                                                                                    <div className="text-xs text-slate-400 mt-2">
+                                                                                        Note: {String(note).slice(0, 120)}{note.length > 120 ? '…' : ''}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    if (typeof setDayNote !== 'function') return;
+                                                                                    const current = a && a.date && dayNotes && dayNotes[a.date] ? dayNotes[a.date].text : '';
+                                                                                    const next = window.prompt(`Edit note for ${a.date}:`, current || '');
+                                                                                    if (next === null) return;
+                                                                                    setDayNote(a.date, next);
+                                                                                }}
+                                                                                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold"
+                                                                            >
+                                                                                Edit note
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
