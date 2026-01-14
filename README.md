@@ -75,7 +75,7 @@ Each level includes the Focusing Question to guide your thinking.
 - Track your daily completion streak
 - See completion rate over the last 7/30/90 days
 - Filter Progress by life area or view All areas
-- Month calendar view with per-day detail and notes
+- Month calendar view with per-day detail, notes, and daily goal planning (tagged to life areas)
 - Recent completions history
 - Celebrate your wins!
 
