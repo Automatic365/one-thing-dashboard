@@ -3,6 +3,23 @@
 ## Overview
 Add structured reflection and planning features based on The ONE Thing Planner to help users maintain accountability and adjust course monthly/quarterly.
 
+## Phase 0: Platform Stability & Release Hygiene (NEW)
+
+These items are foundational and help prevent regressions like data wipes/reverts in production.
+
+### Features
+- **Cloud Sync Hardening**:
+  - Prevent stale Firestore snapshots from overwriting newer local state
+  - Add lightweight document metadata (`clientId`, `updatedAt`) to support conflict avoidance
+  - Improve migration idempotency to prevent write loops
+- **Visible Sync Status**:
+  - Clear indicator for local-only vs cloud-sync mode
+  - Last sync / last save timestamps
+  - Actionable error banner when writes fail (with retry guidance)
+- **Testing / QA**:
+  - Regression checklist for core flows (Goals add/remove, Dashboard set/complete, Progress reflects completion, Import/Export, Firebase login/sync)
+  - “Demo data” seeding to quickly validate UI across views
+
 ## Phase 1: Monthly Review (COMPLETED)
 
 ### Features
@@ -74,6 +91,16 @@ Add structured reflection and planning features based on The ONE Thing Planner t
   - Monthly reflection reminder on the last day of the month.
   - Quarterly reflection reminder on the last day of the quarter.
   - Visual cues/badges when a review is due.
+
+### Additional UX Enhancements (ADDED)
+- **Per-Life-Area Progress Views**:
+  - Breakdown charts by life area
+  - Filters for date range (7/30/90 days)
+  - Optional “All areas vs selected area” toggles
+- **Dashboard Editing Polish**:
+  - Better “saved” feedback and keyboard-friendly interactions
+  - Optional autosave debounce (avoid writing on every keystroke)
+  - Optional quick-set templates for daily goals
 
 ## Phase 4: Enhanced Calendar View (FUTURE)
 
