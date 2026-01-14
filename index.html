@@ -1178,6 +1178,14 @@
 		            const [syncError, setSyncError] = useState(null);
 		            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
 		            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
+		            const [dismissedReviewReminders, setDismissedReviewReminders] = useState(() => {
+		                try {
+		                    const raw = localStorage.getItem('oneThingDismissedReviewReminders');
+		                    return raw ? JSON.parse(raw) : {};
+		                } catch {
+		                    return {};
+		                }
+		            });
 		            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
 		            const lastMigrationWriteRef = React.useRef(null);
 		            const migrationWriteAttemptsRef = React.useRef(0);
@@ -1228,6 +1236,26 @@
 		                const isQuarterEndMonth = month === 2 || month === 5 || month === 8 || month === 11;
 		                if (!isQuarterEndMonth) return false;
 		                return isLastDayOfMonth(date);
+		            };
+
+		            const setReviewReminderDismissed = (type, dateStr) => {
+		                const next = {
+		                    ...(dismissedReviewReminders || {}),
+		                    [dateStr]: {
+		                        ...((dismissedReviewReminders && dismissedReviewReminders[dateStr]) || {}),
+		                        [type]: true
+		                    }
+		                };
+		                setDismissedReviewReminders(next);
+		                try {
+		                    localStorage.setItem('oneThingDismissedReviewReminders', JSON.stringify(next));
+		                } catch {
+		                    // ignore
+		                }
+		            };
+
+		            const isReviewReminderDismissed = (type, dateStr) => {
+		                return Boolean(dismissedReviewReminders && dismissedReviewReminders[dateStr] && dismissedReviewReminders[dateStr][type]);
 		            };
 
 	            // Helper to get local date string YYYY-MM-DD
@@ -1802,6 +1830,7 @@
             };
 
 		            const today = new Date().toISOString().split('T')[0];
+		            const todayLocal = getLocalDateString();
 
 		            // Get active life areas
 		            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
@@ -1815,6 +1844,11 @@
 		            const monthlyReviewDue = monthEndDueAreas.length > 0;
 		            const quarterlyReviewDue = quarterEndDueAreas.length > 0;
 		            const anyReviewDue = monthlyReviewDue || quarterlyReviewDue;
+		            const showMonthlyReminder = monthlyReviewDue && !isReviewReminderDismissed('monthly', todayLocal);
+		            const showQuarterlyReminder = quarterlyReviewDue && !isReviewReminderDismissed('quarterly', todayLocal);
+		            const showReviewReminderBanner =
+		                (currentView === 'dashboard' || currentView === 'reflect') &&
+		                (showMonthlyReminder || showQuarterlyReminder);
 
 		            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
 
@@ -1883,10 +1917,50 @@
 	                                monthEndDueAreasCount={monthEndDueAreas.length}
 	                                quarterEndDueAreasCount={quarterEndDueAreas.length}
 	                            />
+	
+	                            {showReviewReminderBanner && (
+	                                <div className="mt-6">
+	                                    <div className="glass border border-rose-500/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+	                                        <div>
+	                                            <div className="font-bold text-rose-200">Reflection due today</div>
+	                                            <div className="text-sm text-slate-200/80 mt-1">
+	                                                {showMonthlyReminder && (
+	                                                    <span>
+	                                                        Monthly reflection due for <span className="font-mono">{monthEndDueAreas.length}</span> area{monthEndDueAreas.length === 1 ? '' : 's'}.
+	                                                    </span>
+	                                                )}
+	                                                {showMonthlyReminder && showQuarterlyReminder && <span className="mx-2 text-slate-500">•</span>}
+	                                                {showQuarterlyReminder && (
+	                                                    <span>
+	                                                        Quarterly reflection due for <span className="font-mono">{quarterEndDueAreas.length}</span> area{quarterEndDueAreas.length === 1 ? '' : 's'}.
+	                                                    </span>
+	                                                )}
+	                                            </div>
+	                                        </div>
+	                                        <div className="flex items-center gap-2">
+	                                            <button
+	                                                onClick={() => setCurrentView('reflect')}
+	                                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-100 border border-slate-700"
+	                                            >
+	                                                Go to Reflect
+	                                            </button>
+	                                            <button
+	                                                onClick={() => {
+	                                                    if (showMonthlyReminder) setReviewReminderDismissed('monthly', todayLocal);
+	                                                    if (showQuarterlyReminder) setReviewReminderDismissed('quarterly', todayLocal);
+	                                                }}
+	                                                className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg text-sm text-rose-200 border border-rose-500/30"
+	                                            >
+	                                                Dismiss today
+	                                            </button>
+	                                        </div>
+	                                    </div>
+	                                </div>
+	                            )}
 
-                            <main className="mt-8">
-                                {currentView === 'dashboard' && (
-                                    <Dashboard
+	                            <main className="mt-8">
+	                                {currentView === 'dashboard' && (
+	                                    <Dashboard
                                         lifeAreas={state.lifeAreas}
                                         activeAreas={activeAreas}
                                         updateGoal={updateGoal}
@@ -2022,10 +2096,50 @@
 	                        monthEndDueAreasCount={monthEndDueAreas.length}
 	                        quarterEndDueAreasCount={quarterEndDueAreas.length}
 	                    />
+	
+		                    {showReviewReminderBanner && (
+		                        <div className="max-w-7xl mx-auto px-4 pt-4">
+		                            <div className="glass border border-rose-500/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+		                                <div>
+		                                    <div className="font-bold text-rose-200">Reflection due today</div>
+		                                    <div className="text-sm text-slate-200/80 mt-1">
+		                                        {showMonthlyReminder && (
+		                                            <span>
+		                                                Monthly reflection due for <span className="font-mono">{monthEndDueAreas.length}</span> area{monthEndDueAreas.length === 1 ? '' : 's'}.
+		                                            </span>
+		                                        )}
+		                                        {showMonthlyReminder && showQuarterlyReminder && <span className="mx-2 text-slate-500">•</span>}
+		                                        {showQuarterlyReminder && (
+		                                            <span>
+		                                                Quarterly reflection due for <span className="font-mono">{quarterEndDueAreas.length}</span> area{quarterEndDueAreas.length === 1 ? '' : 's'}.
+		                                            </span>
+		                                        )}
+		                                    </div>
+		                                </div>
+		                                <div className="flex items-center gap-2">
+		                                    <button
+		                                        onClick={() => setCurrentView('reflect')}
+		                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-100 border border-slate-700"
+		                                    >
+		                                        Go to Reflect
+		                                    </button>
+		                                    <button
+		                                        onClick={() => {
+		                                            if (showMonthlyReminder) setReviewReminderDismissed('monthly', todayLocal);
+		                                            if (showQuarterlyReminder) setReviewReminderDismissed('quarterly', todayLocal);
+		                                        }}
+		                                        className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg text-sm text-rose-200 border border-rose-500/30"
+		                                    >
+		                                        Dismiss today
+		                                    </button>
+		                                </div>
+		                            </div>
+		                        </div>
+		                    )}
 
 	                    <main className="max-w-7xl mx-auto px-4 py-8">
-                        {currentView === 'dashboard' && (
-                            <Dashboard
+	                        {currentView === 'dashboard' && (
+	                            <Dashboard
                                 lifeAreas={state.lifeAreas}
                                 activeAreas={activeAreas}
                                 updateGoal={updateGoal}
