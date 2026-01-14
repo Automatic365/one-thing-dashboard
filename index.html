@@ -626,13 +626,33 @@
                     // Let's check for 'annualGoals' (V5+ feature).
                     const hasAnnualGoals = activeAreas.some(k => oldData.lifeAreas[k].goals?.annualGoals);
                     
+                    let repairedState;
                     if (!hasAnnualGoals) {
                         // It's V4 structure masquerading as V7
-                        return migrateData({ ...oldData, version: 4 });
+                        repairedState = migrateData({ ...oldData, version: 4 });
                     } else {
                         // It's V6 structure (has annualGoals but missing dailyHistory)
-                        return migrateData({ ...oldData, version: 6 });
+                        repairedState = migrateData({ ...oldData, version: 6 });
                     }
+
+                    // AUTO-ACTIVATE: If an area has goals/text but is inactive (due to wipe), activate it.
+                    Object.keys(repairedState.lifeAreas).forEach(key => {
+                        const area = repairedState.lifeAreas[key];
+                        // Check if any goal text exists
+                        const hasGoalText = 
+                            area.goals.someday?.text || 
+                            area.goals.fiveYear?.text ||
+                            area.goals.annualGoals?.some(g => g.text) ||
+                            area.goals.monthlyGoals?.some(g => g.text) ||
+                            area.goals.weeklyGoals?.some(g => g.text) ||
+                            area.goals.dailyHistory?.[Object.keys(area.goals.dailyHistory)[0]]?.text; // Check any daily history
+
+                        if (hasGoalText && !area.active) {
+                            area.active = true;
+                        }
+                    });
+
+                    return repairedState;
                 }
                 
                 return oldData;
