@@ -435,7 +435,13 @@
         // Firebase Auth/Firestore require http(s) or localhost; file:// commonly breaks auth.
         const isFirebaseConfigured = !!FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
         const isFirebaseEnvSupported = typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:';
-        const forceLocalOnly = typeof window !== 'undefined' && window.location && window.location.search.includes('local=1');
+        const isLocalhost =
+            typeof window !== 'undefined' &&
+            window.location &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const search = typeof window !== 'undefined' && window.location ? window.location.search : '';
+        const forceCloudSync = search.includes('cloud=1');
+        const forceLocalOnly = search.includes('local=1') || (isLocalhost && !forceCloudSync);
         const isFirebaseEnabled = isFirebaseConfigured && isFirebaseEnvSupported && !forceLocalOnly;
 
         // Initialize Firebase only if configured
@@ -1709,24 +1715,28 @@
                 return <AuthScreen />;
             }
 
-            if (!isFirebaseEnabled) {
-                return (
-                    <div className="min-h-screen bg-slate-900 text-slate-50">
-                        <div className="max-w-4xl mx-auto px-4 py-16">
-                            <div className="glass border border-yellow-500/30 rounded-xl p-8 mb-8 relative overflow-hidden">
+	            if (!isFirebaseEnabled) {
+	                return (
+	                    <div className="min-h-screen bg-slate-900 text-slate-50">
+	                        <div className="max-w-4xl mx-auto px-4 py-16">
+	                            <div className="glass border border-yellow-500/30 rounded-xl p-8 mb-8 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10">
                                     <span className="text-9xl">⚠️</span>
                                 </div>
-                                <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center">
-                                    <span className="mr-3 text-3xl">⚠️</span>
-                                    {isFirebaseConfigured ? 'Firebase Disabled (file://)' : 'Firebase Not Configured'}
-                                </h2>
-                                <p className="text-slate-300 mb-4 leading-relaxed">
-                                    Your app is currently using <strong className="text-white">localStorage</strong> (local-only storage).
-                                    {isFirebaseConfigured
-                                        ? ' To use Firebase sync, run this app from http://localhost (or deploy it) instead of opening the file directly.'
-                                        : ' To sync across devices, you need to set up Firebase.'}
-                                </p>
+	                                <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center">
+	                                    <span className="mr-3 text-3xl">⚠️</span>
+	                                    {isFirebaseConfigured
+	                                        ? (forceLocalOnly && isLocalhost ? 'Cloud Sync Disabled (local test mode)' : 'Firebase Disabled (file://)')
+	                                        : 'Firebase Not Configured'}
+	                                </h2>
+	                                <p className="text-slate-300 mb-4 leading-relaxed">
+	                                    Your app is currently using <strong className="text-white">localStorage</strong> (local-only storage).
+	                                    {isFirebaseConfigured
+	                                        ? (forceLocalOnly && isLocalhost
+	                                            ? ' Cloud sync is intentionally disabled on localhost to prevent accidental overwrites. Add ?cloud=1 to enable it.'
+	                                            : ' To use Firebase sync, run this app from http://localhost (or deploy it) instead of opening the file directly.')
+	                                        : ' To sync across devices, you need to set up Firebase.'}
+	                                </p>
                                 <p className="text-slate-300 mb-6 leading-relaxed">
                                     <strong>Don't worry!</strong> Your app still works perfectly on this device.
                                 </p>
