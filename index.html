@@ -1321,14 +1321,23 @@
                 saveState(newState);
             };
 
-            const completeDaily = (areaKey, date = null) => {
+            const completeDaily = (areaKey, date = null, textOverride = null) => {
                 const targetDate = date || getLocalDateString();
                 const area = state.lifeAreas[areaKey];
-                const entry = area.goals.dailyHistory?.[targetDate];
+                const dailyHistory = (area.goals && area.goals.dailyHistory) ? area.goals.dailyHistory : {};
+                const existingEntry = dailyHistory[targetDate] || { text: '', completed: false, updatedAt: null };
+                const nextText = (textOverride !== null && textOverride !== undefined) ? String(textOverride) : existingEntry.text;
 
-                if (!entry || !entry.text) return; // Can't complete empty goal
+                if (!nextText || !nextText.trim()) return; // Can't complete empty goal
 
-                const newCompletedStatus = !entry.completed;
+                const newCompletedStatus = !existingEntry.completed;
+
+                const nextEntry = {
+                    ...existingEntry,
+                    text: nextText,
+                    updatedAt: (textOverride !== null && textOverride !== undefined) ? new Date().toISOString() : existingEntry.updatedAt,
+                    completed: newCompletedStatus
+                };
 
                 const newState = {
                     ...state,
@@ -1339,11 +1348,8 @@
                             goals: {
                                 ...area.goals,
                                 dailyHistory: {
-                                    ...area.goals.dailyHistory,
-                                    [targetDate]: {
-                                        ...entry,
-                                        completed: newCompletedStatus
-                                    }
+                                    ...dailyHistory,
+                                    [targetDate]: nextEntry
                                 }
                             }
                         }
@@ -2453,10 +2459,125 @@
             );
         }
 
-        // ==========================================
-        // DASHBOARD
-        // ==========================================
-        function Dashboard({ lifeAreas, activeAreas, updateGoal, completeDaily, quote, rotateQuote, toggleLifeArea }) {
+	        // ==========================================
+	        // DASHBOARD
+	        // ==========================================
+	        function DailyOneThingEditor({ areaKey, dateStr, isToday, dailyEntry, updateGoal, completeDaily }) {
+	            const [draft, setDraft] = React.useState(dailyEntry.text || '');
+	            const [editing, setEditing] = React.useState(!dailyEntry.completed);
+	            const [saved, setSaved] = React.useState(false);
+	
+	            React.useEffect(() => {
+	                setDraft(dailyEntry.text || '');
+	                setEditing(!dailyEntry.completed);
+	            }, [areaKey, dateStr, dailyEntry.completed, dailyEntry.text]);
+	
+	            const saveDraft = () => {
+	                updateGoal(areaKey, 'daily', draft, dateStr);
+	                setSaved(true);
+	                setTimeout(() => setSaved(false), 1200);
+	            };
+	
+	            if (dailyEntry.completed && !editing) {
+	                return (
+	                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
+	                        <div className="flex items-center justify-between gap-4">
+	                            <div className="flex items-center gap-4">
+	                                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+	                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+	                                </div>
+	                                <div>
+	                                    <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
+	                                        {dailyEntry.text}
+	                                    </p>
+	                                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
+	                                </div>
+	                            </div>
+	                            <div className="flex items-center gap-2">
+	                                <button
+	                                    onClick={() => setEditing(true)}
+	                                    className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50"
+	                                    title="Edit goal text"
+	                                >
+	                                    Edit
+	                                </button>
+	                                <button
+	                                    onClick={() => completeDaily(areaKey, dateStr)}
+	                                    className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50 hover:border-red-500/30"
+	                                    title="Undo completion"
+	                                >
+	                                    Undo
+	                                </button>
+	                            </div>
+	                        </div>
+	                    </div>
+	                );
+	            }
+	
+	            return (
+	                <div className="space-y-3">
+	                    <textarea
+	                        value={draft}
+	                        onChange={(e) => setDraft(e.target.value)}
+	                        onBlur={() => {
+	                            if (!dailyEntry.completed) saveDraft();
+	                        }}
+	                        placeholder={`What is your ONE Thing for ${isToday ? 'today' : 'this day'}?`}
+	                        className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg leading-relaxed resize-none shadow-inner"
+	                        rows="2"
+	                    />
+	
+	                    <div className="flex gap-3">
+	                        <button
+	                            type="button"
+	                            onClick={() => {
+	                                saveDraft();
+	                                if (dailyEntry.completed) setEditing(false);
+	                            }}
+	                            className={`flex-1 py-3 px-4 border border-transparent text-sm font-bold rounded-xl transition-all duration-200 ${
+	                                'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600'
+	                            }`}
+	                        >
+	                            {saved ? 'Saved' : 'Save'}
+	                        </button>
+	                        {!dailyEntry.completed && (
+	                            <button
+	                                onClick={() => completeDaily(areaKey, dateStr, draft)}
+	                                disabled={!draft || !draft.trim()}
+	                                className={`flex-[2] group relative flex items-center justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white transition-all duration-200 ${
+	                                    draft && draft.trim()
+	                                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5'
+	                                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+	                                }`}
+	                            >
+	                                <span className="mr-2">Complete Task</span>
+	                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+	                            </button>
+	                        )}
+	                        {dailyEntry.completed && (
+	                            <button
+	                                onClick={() => completeDaily(areaKey, dateStr)}
+	                                className="flex-[2] py-3 px-4 bg-slate-800/60 hover:bg-slate-800 text-slate-200 rounded-xl border border-slate-700/50 hover:border-red-500/30 hover:text-red-200 transition-all"
+	                                title="Undo completion"
+	                            >
+	                                Undo Completion
+	                            </button>
+	                        )}
+	                        {dailyEntry.completed && (
+	                            <button
+	                                type="button"
+	                                onClick={() => setEditing(false)}
+	                                className="py-3 px-4 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-700/50"
+	                            >
+	                                Cancel
+	                            </button>
+	                        )}
+	                    </div>
+	                </div>
+	            );
+	        }
+	
+	        function Dashboard({ lifeAreas, activeAreas, updateGoal, completeDaily, quote, rotateQuote, toggleLifeArea }) {
             // Helper to get local date string YYYY-MM-DD
             const getLocalDateString = (dateObj = new Date()) => {
                 const d = new Date(dateObj);
@@ -2652,56 +2773,17 @@
                                                     </span>
                                                 </div>
 
-                                                {isCompleted ? (
-                                                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
-                                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
-                                                                        {dailyEntry.text}
-                                                                    </p>
-                                                                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => completeDaily(areaKey, selectedDate)}
-                                                                className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50 hover:border-red-500/30"
-                                                                title="Undo completion"
-                                                            >
-                                                                Undo
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-4">
-                                                        <textarea
-                                                            value={dailyEntry.text}
-                                                            onChange={(e) => updateGoal(areaKey, 'daily', e.target.value, selectedDate)}
-                                                            placeholder={`What is your ONE Thing for ${isToday ? 'today' : 'this day'}?`}
-                                                            className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg leading-relaxed resize-none shadow-inner"
-                                                            rows="2"
-                                                        />
-
-                                                        <button
-                                                            onClick={() => completeDaily(areaKey, selectedDate)}
-                                                            disabled={!dailyEntry.text}
-                                                            className={`w-full group relative flex items-center justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white transition-all duration-200 ${
-                                                                dailyEntry.text 
-                                                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5' 
-                                                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                                            }`}
-                                                        >
-                                                            <span className="mr-2">Complete Task</span>
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+	                                                <DailyOneThingEditor
+	                                                    areaKey={areaKey}
+	                                                    dateStr={selectedDate}
+	                                                    isToday={isToday}
+	                                                    dailyEntry={dailyEntry}
+	                                                    updateGoal={updateGoal}
+	                                                    completeDaily={completeDaily}
+	                                                />
+	                                            </div>
+	                                        </div>
+	                                    </div>
                                 );
                             })}
                         </div>
