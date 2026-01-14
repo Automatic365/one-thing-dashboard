@@ -4146,65 +4146,93 @@
         // PROGRESS TRACKER
         // ==========================================
         function ProgressTracker({ lifeAreas, activeAreas }) {
+            const [selectedAreaScope, setSelectedAreaScope] = React.useState('all'); // 'all' or areaKey
+            const [rangeDays, setRangeDays] = React.useState(30); // 7 / 30 / 90
+
             // Helper to get local date string YYYY-MM-DD
             const getLocalDateString = (dateObj = new Date()) => {
                 const offset = dateObj.getTimezoneOffset() * 60000;
                 return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
             };
 
+            React.useEffect(() => {
+                if (selectedAreaScope === 'all') return;
+                if (!activeAreas.includes(selectedAreaScope)) setSelectedAreaScope('all');
+            }, [selectedAreaScope, activeAreas]);
+
+            const parseLocalDate = (dateStr) => {
+                const [y, m, d] = String(dateStr).split('-').map(Number);
+                return new Date(y, (m || 1) - 1, d || 1);
+            };
+
             // Aggregate completions from all active life areas
-            const allCompletions = [];
-	            Object.keys(lifeAreas).forEach(areaKey => {
-	                if (lifeAreas[areaKey].active) {
-	                    const area = lifeAreas[areaKey];
-	                    
-	                    // v7 source of truth: dailyHistory
-	                    const dailyHistory = area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
-	                    const completedDatesFromHistory = new Set();
-	                    Object.keys(dailyHistory).forEach(date => {
-	                        const entry = dailyHistory[date];
-	                        if (entry && entry.completed) {
-	                            completedDatesFromHistory.add(date);
-	                            allCompletions.push({
-	                                date,
-	                                goal: entry.text || 'Completed Task',
-	                                lifeArea: areaKey
-	                            });
-	                        }
-	                    });
-	                    
-	                    // legacy fallback: completions array (kept for older migrated data)
-	                    if (Array.isArray(area.completions)) {
-	                        area.completions.forEach(comp => {
-	                            if (comp && comp.date && completedDatesFromHistory.has(comp.date)) return;
-	                            allCompletions.push({
-	                                ...comp,
-	                                lifeArea: areaKey
-	                            });
-	                        });
-	                    }
-	                }
-	            });
+            const allCompletionsAllActive = [];
+		            Object.keys(lifeAreas).forEach(areaKey => {
+		                if (lifeAreas[areaKey].active) {
+		                    const area = lifeAreas[areaKey];
+		                    
+		                    // v7 source of truth: dailyHistory
+		                    const dailyHistory = area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
+		                    const completedDatesFromHistory = new Set();
+		                    Object.keys(dailyHistory).forEach(date => {
+		                        const entry = dailyHistory[date];
+		                        if (entry && entry.completed) {
+		                            completedDatesFromHistory.add(date);
+		                            allCompletionsAllActive.push({
+		                                date,
+		                                goal: entry.text || 'Completed Task',
+		                                lifeArea: areaKey
+		                            });
+		                        }
+		                    });
+		                    
+		                    // legacy fallback: completions array (kept for older migrated data)
+		                    if (Array.isArray(area.completions)) {
+		                        area.completions.forEach(comp => {
+		                            if (comp && comp.date && completedDatesFromHistory.has(comp.date)) return;
+		                            allCompletionsAllActive.push({
+		                                ...comp,
+		                                lifeArea: areaKey
+		                            });
+		                        });
+		                    }
+		                }
+		            });
 
             // Use local date for 'today'
             const todayStr = getLocalDateString();
 
-            const last30Days = Array.from({ length: 30 }, (_, i) => {
+            const lastNDays = Array.from({ length: rangeDays }, (_, i) => {
                 const date = new Date();
-                date.setDate(date.getDate() - (29 - i));
+                date.setDate(date.getDate() - ((rangeDays - 1) - i));
                 return getLocalDateString(date);
             });
 
-            const completionMap = allCompletions.reduce((acc, comp) => {
+            const startDate = (() => {
+                const d = new Date();
+                d.setHours(0, 0, 0, 0);
+                d.setDate(d.getDate() - (rangeDays - 1));
+                return d;
+            })();
+
+            const filteredCompletions = allCompletionsAllActive.filter((comp) => {
+                if (!comp || !comp.date) return false;
+                if (selectedAreaScope !== 'all' && comp.lifeArea !== selectedAreaScope) return false;
+                const d = parseLocalDate(comp.date);
+                d.setHours(0, 0, 0, 0);
+                return d >= startDate;
+            });
+
+            const completionMap = filteredCompletions.reduce((acc, comp) => {
                 acc[comp.date] = true;
                 return acc;
             }, {});
 
-            const completedDays = last30Days.filter(date => completionMap[date]).length;
-            const completionRate = Math.round((completedDays / 30) * 100);
+            const completedDays = lastNDays.filter(date => completionMap[date]).length;
+            const completionRate = Math.round((completedDays / rangeDays) * 100);
 
             let currentStreak = 0;
-            for (let i = 0; i < 30; i++) {
+            for (let i = 0; i < rangeDays; i++) {
                 const date = new Date();
                 date.setDate(date.getDate() - i);
                 const dateStr = getLocalDateString(date);
@@ -4227,6 +4255,49 @@
                         </p>
                     </div>
 
+                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Life Area</label>
+                                <select
+                                    value={selectedAreaScope}
+                                    onChange={(e) => setSelectedAreaScope(e.target.value)}
+                                    className="px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                                >
+                                    <option value="all">All Active Areas</option>
+                                    {activeAreas.map((areaKey) => (
+                                        <option key={areaKey} value={areaKey}>
+                                            {LIFE_AREAS[areaKey]?.icon || ''} {LIFE_AREAS[areaKey]?.name || areaKey}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date Range</label>
+                                <div className="flex items-center gap-2">
+                                    {[7, 30, 90].map((d) => (
+                                        <button
+                                            key={d}
+                                            type="button"
+                                            onClick={() => setRangeDays(d)}
+                                            className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                                                rangeDays === d
+                                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.15)]'
+                                                    : 'bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                                            }`}
+                                        >
+                                            {d}d
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-4">
+                            Showing {selectedAreaScope === 'all' ? 'all active areas' : (LIFE_AREAS[selectedAreaScope]?.name || selectedAreaScope)} over the last {rangeDays} days.
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="glass rounded-2xl p-6 border border-blue-500/30 bg-blue-500/5 text-center group hover:bg-blue-500/10 transition-colors">
                             <div className="text-5xl font-bold text-blue-400 mb-2 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]">
@@ -4241,7 +4312,7 @@
                                 {completedDays}
                             </div>
                             <div className="text-emerald-200 font-bold uppercase tracking-wider text-sm">Completed Days</div>
-                            <div className="text-emerald-300/60 text-xs mt-1">Last 30 days</div>
+                            <div className="text-emerald-300/60 text-xs mt-1">Last {rangeDays} days</div>
                         </div>
 
                         <div className="glass rounded-2xl p-6 border border-purple-500/30 bg-purple-500/5 text-center group hover:bg-purple-500/10 transition-colors">
@@ -4249,16 +4320,21 @@
                                 {completionRate}%
                             </div>
                             <div className="text-purple-200 font-bold uppercase tracking-wider text-sm">Completion Rate</div>
-                            <div className="text-purple-300/60 text-xs mt-1">Last 30 days</div>
+                            <div className="text-purple-300/60 text-xs mt-1">Last {rangeDays} days</div>
                         </div>
                     </div>
 
                     <div className="glass rounded-2xl p-8 border border-slate-700/50">
                         <h3 className="text-xl font-bold text-white mb-6 flex items-center">
-                            Last 30 Days
+                            Last {rangeDays} Days
                         </h3>
-                        <div className="grid grid-cols-10 gap-3">
-                            {last30Days.map((date, i) => {
+                        <div
+                            className="grid gap-3"
+                            style={{
+                                gridTemplateColumns: `repeat(${rangeDays === 7 ? 7 : rangeDays === 30 ? 10 : 15}, minmax(0, 1fr))`
+                            }}
+                        >
+                            {lastNDays.map((date, i) => {
                                 const isCompleted = completionMap[date];
                                 const [y, m, d] = date.split('-').map(Number);
                                 const dateObj = new Date(y, m - 1, d);
@@ -4288,15 +4364,15 @@
 
                     <div className="glass rounded-2xl p-8 border border-slate-700/50 min-h-[400px]">
                         <h3 className="text-xl font-bold text-white mb-6">Recent Completions</h3>
-                        {allCompletions.length === 0 ? (
+                        {filteredCompletions.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl">
                                 <span className="text-4xl mb-3 opacity-50">🏆</span>
-                                <p className="text-center">No completions yet.</p>
-                                <p className="text-sm opacity-60">Start by setting and completing your daily ONE Thing!</p>
+                                <p className="text-center">No completions in this range.</p>
+                                <p className="text-sm opacity-60">Try expanding the date range or switching to All Active Areas.</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {allCompletions
+                                {filteredCompletions
                                     .slice()
                                     .sort((a, b) => new Date(b.date) - new Date(a.date))
                                     .slice(0, 10)
