@@ -896,8 +896,22 @@
                         const originalData = doc.data();
                         const data = migrateData(originalData);
                         setState(data);
-                        // If migration happened (version changed), save migrated data back
-                        if (data.version !== originalData.version) {
+                        
+                        // Check if migration or repair happened
+                        const versionChanged = data.version !== originalData.version;
+                        
+                        // Check if structural repair happened (V7 broken -> V7 fixed)
+                        // Simple check: original didn't have dailyHistory, new one does
+                        let structuralRepair = false;
+                        if (data.version === 7 && originalData.version === 7) {
+                            const sampleKey = Object.keys(data.lifeAreas)[0];
+                            if (sampleKey && !originalData.lifeAreas[sampleKey]?.goals?.dailyHistory && data.lifeAreas[sampleKey]?.goals?.dailyHistory) {
+                                structuralRepair = true;
+                            }
+                        }
+
+                        if (versionChanged || structuralRepair) {
+                            console.log("Saving migrated/repaired data...");
                             docRef.set(data);
                         }
                     } else {
