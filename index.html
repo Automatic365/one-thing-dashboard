@@ -156,6 +156,11 @@
             position: relative;
             overflow: hidden;
         }
+        
+        /* Some components (dropdowns/menus) need to escape the card bounds */
+        .glass.allow-overflow {
+            overflow: visible;
+        }
 
         /* HUD Corner Borders */
         .hud-card {
@@ -2793,10 +2798,28 @@
         // ==========================================
         // GOAL HIERARCHY
         // ==========================================
-        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateAnnualGoal, setAnnualOneThing, updateMonthlyGoal, setMonthlyOneThing, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
-            const levels = [
-                {
-                    key: 'someday',
+	        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateAnnualGoal, setAnnualOneThing, updateMonthlyGoal, setMonthlyOneThing, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
+	            const [addAreaMenuOpen, setAddAreaMenuOpen] = React.useState(false);
+	            const [addAreaMenuRect, setAddAreaMenuRect] = React.useState(null);
+	
+	            const openAddAreaMenu = (e) => {
+	                const rect = e.currentTarget.getBoundingClientRect();
+	                setAddAreaMenuRect(rect);
+	                setAddAreaMenuOpen(true);
+	            };
+	
+	            React.useEffect(() => {
+	                if (!addAreaMenuOpen) return;
+	                const onKeyDown = (evt) => {
+	                    if (evt.key === 'Escape') setAddAreaMenuOpen(false);
+	                };
+	                window.addEventListener('keydown', onKeyDown);
+	                return () => window.removeEventListener('keydown', onKeyDown);
+	            }, [addAreaMenuOpen]);
+	
+	            const levels = [
+	                {
+	                    key: 'someday',
                     label: 'Someday Goal',
                     question: 'What\'s the ONE Thing I want to do someday?',
                     description: 'Your ultimate vision - the big dream that inspires everything else',
