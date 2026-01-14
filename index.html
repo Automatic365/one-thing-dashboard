@@ -596,28 +596,30 @@
             dailyHistory: {} 
         });
 
-        const getInitialState = () => ({
-            version: 7, // Track data version for migrations (v7 = daily history)
-            _meta: {
-                clientId: getClientId(),
-                updatedAt: null
-            },
-            lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
-                acc[key] = {
-                    active: key === 'business', // Default Business to active to prevent lockout
-                    goals: createEmptyGoals(),
-                    completions: [], // Deprecated in v7, kept for safety during migration
-                    reviews: {
-                        monthly: [],
-                        quarterly: []
-                    }
-                };
-                return acc;
-            }, {}),
-            timeBlocks: [],
-            currentQuoteIndex: 0,
-            // 4-1-1 System tracking
-            lastWeeklyReview: null,  // ISO date of last weekly review
+	        const getInitialState = () => ({
+	            version: 7, // Track data version for migrations (v7 = daily history)
+	            _meta: {
+	                clientId: getClientId(),
+	                updatedAt: null
+	            },
+	            lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
+	                acc[key] = {
+	                    active: key === 'business', // Default Business to active to prevent lockout
+	                    goals: createEmptyGoals(),
+	                    completions: [], // Deprecated in v7, kept for safety during migration
+	                    obstaclesSolutions: [],
+	                    reviews: {
+	                        monthly: [],
+	                        quarterly: []
+	                    }
+	                };
+	                return acc;
+	            }, {}),
+	            dayNotes: {},
+	            timeBlocks: [],
+	            currentQuoteIndex: 0,
+	            // 4-1-1 System tracking
+	            lastWeeklyReview: null,  // ISO date of last weekly review
             lastAnnualReview: null   // ISO date of last annual review
         });
 
@@ -931,6 +933,24 @@
 	            return Number.isFinite(ms) ? ms : null;
 	        };
 
+	        const ensureShape = (state) => {
+	            if (!state || typeof state !== 'object') return state;
+	            const next = { ...state };
+	            if (!next.dayNotes || typeof next.dayNotes !== 'object') next.dayNotes = {};
+	
+	            const inputAreas = next.lifeAreas && typeof next.lifeAreas === 'object' ? next.lifeAreas : {};
+	            const outAreas = { ...inputAreas };
+	            Object.keys(LIFE_AREAS).forEach((key) => {
+	                if (!outAreas[key]) return;
+	                const area = outAreas[key];
+	                if (!Array.isArray(area.obstaclesSolutions)) {
+	                    outAreas[key] = { ...area, obstaclesSolutions: [] };
+	                }
+	            });
+	            next.lifeAreas = outAreas;
+	            return next;
+	        };
+
 	        const withMeta = (state, overrides = {}) => {
 	            const clientId = getClientId();
 	            const nextMeta = {
@@ -940,11 +960,12 @@
 	            };
 	            return { ...state, _meta: nextMeta };
 	        };
-	
+		
 	        const ensureMeta = (state) => {
 	            if (!state || typeof state !== 'object') return withMeta(getInitialState(), { updatedAt: null });
-	            if (state._meta && state._meta.clientId) return state;
-	            return withMeta(state, { updatedAt: state._meta && state._meta.updatedAt ? state._meta.updatedAt : null });
+	            const shaped = ensureShape(state);
+	            if (shaped._meta && shaped._meta.clientId) return shaped;
+	            return withMeta(shaped, { updatedAt: shaped._meta && shaped._meta.updatedAt ? shaped._meta.updatedAt : null });
 	        };
 	
 	        const createDemoState = (todayStr) => {
@@ -1070,14 +1091,31 @@
 	                area.goals.dailyHistory = dailyHistory;
 	            });
 	
-	            demo.timeBlocks = [
-	                { id: Date.now(), date: todayStr, startTime: '09:00', endTime: '11:00', title: 'Deep Work: ONE Thing', lifeArea: 'business', completed: false },
-	                { id: Date.now() + 1, date: todayStr, startTime: '16:00', endTime: '17:00', title: 'Workout', lifeArea: 'health', completed: false }
-	            ];
-	
-	            demo.currentQuoteIndex = 0;
-	            return demo;
-	        };
+		            demo.timeBlocks = [
+		                { id: Date.now(), date: todayStr, startTime: '09:00', endTime: '11:00', title: 'Deep Work: ONE Thing', lifeArea: 'business', completed: false },
+		                { id: Date.now() + 1, date: todayStr, startTime: '16:00', endTime: '17:00', title: 'Workout', lifeArea: 'health', completed: false }
+		            ];
+
+		            demo.dayNotes = {
+		                [todayStr]: { text: 'Felt good today. Blocked notifications during deep work.', updatedAt: new Date().toISOString() },
+		                [shiftDateStr(todayStr, -2)]: { text: 'Got stuck on a bug; started earlier tomorrow.', updatedAt: new Date().toISOString() }
+		            };
+
+		            demo.lifeAreas.business.obstaclesSolutions = [
+		                {
+		                    id: `os_demo_${Date.now()}`,
+		                    obstacle: 'Context switching kills momentum',
+		                    solution: 'Time block + shut notifications + single-task',
+		                    createdAt: new Date().toISOString(),
+		                    triedCount: 2,
+		                    workedCount: 2,
+		                    lastTriedAt: new Date().toISOString()
+		                }
+		            ];
+
+		            demo.currentQuoteIndex = 0;
+		            return demo;
+		        };
 	
 	        const normalizeForCompare = (value) => {
 	            const seen = new WeakSet();
@@ -1635,11 +1673,11 @@
                 saveState(newState);
             };
 
-            const completeDaily = (areaKey, date = null, textOverride = null) => {
-                const targetDate = date || getLocalDateString();
-                const area = state.lifeAreas[areaKey];
-                const dailyHistory = (area.goals && area.goals.dailyHistory) ? area.goals.dailyHistory : {};
-                const existingEntry = dailyHistory[targetDate] || { text: '', completed: false, updatedAt: null };
+	            const completeDaily = (areaKey, date = null, textOverride = null) => {
+	                const targetDate = date || getLocalDateString();
+	                const area = state.lifeAreas[areaKey];
+	                const dailyHistory = (area.goals && area.goals.dailyHistory) ? area.goals.dailyHistory : {};
+	                const existingEntry = dailyHistory[targetDate] || { text: '', completed: false, updatedAt: null };
                 const nextText = (textOverride !== null && textOverride !== undefined) ? String(textOverride) : existingEntry.text;
 
                 if (!nextText || !nextText.trim()) return; // Can't complete empty goal
@@ -1668,9 +1706,22 @@
                             }
                         }
                     }
-                };
-                saveState(newState);
-            };
+	                };
+	                saveState(newState);
+	            };
+
+	            const setDayNote = (dateStr, text) => {
+	                if (!dateStr) return;
+	                const trimmed = (text || '').trim();
+	                const nextNotes = { ...(state.dayNotes || {}) };
+	                if (!trimmed) {
+	                    delete nextNotes[dateStr];
+	                } else {
+	                    nextNotes[dateStr] = { text: trimmed, updatedAt: new Date().toISOString() };
+	                }
+	                const newState = { ...state, dayNotes: nextNotes };
+	                saveState(newState);
+	            };
 
             // Mark weekly review as complete (4-1-1 system)
             const markWeeklyReview = () => {
@@ -1778,13 +1829,88 @@
                 saveState(newState);
             };
 
-            // Get quarterly review for current quarter
-            const getCurrentQuarterReview = (areaKey) => {
-                const currentQuarter = getCurrentQuarterString();
-                const area = state.lifeAreas[areaKey];
-                if (!area || !area.reviews || !area.reviews.quarterly) return null;
-                return area.reviews.quarterly.find(r => r.date === currentQuarter) || null;
-            };
+	            // Get quarterly review for current quarter
+	            const getCurrentQuarterReview = (areaKey) => {
+	                const currentQuarter = getCurrentQuarterString();
+	                const area = state.lifeAreas[areaKey];
+	                if (!area || !area.reviews || !area.reviews.quarterly) return null;
+	                return area.reviews.quarterly.find(r => r.date === currentQuarter) || null;
+	            };
+
+	            const addObstacleSolution = (areaKey, obstacleText, solutionText) => {
+	                if (!areaKey || !state.lifeAreas[areaKey]) return;
+	                const obstacle = (obstacleText || '').trim();
+	                const solution = (solutionText || '').trim();
+	                if (!obstacle) return;
+
+	                const area = state.lifeAreas[areaKey];
+	                const list = Array.isArray(area.obstaclesSolutions) ? area.obstaclesSolutions : [];
+	                const entry = {
+	                    id: `os_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+	                    obstacle,
+	                    solution,
+	                    createdAt: new Date().toISOString(),
+	                    triedCount: 0,
+	                    workedCount: 0,
+	                    lastTriedAt: null
+	                };
+
+	                const newState = {
+	                    ...state,
+	                    lifeAreas: {
+	                        ...state.lifeAreas,
+	                        [areaKey]: {
+	                            ...area,
+	                            obstaclesSolutions: [entry, ...list]
+	                        }
+	                    }
+	                };
+	                saveState(newState);
+	            };
+
+	            const recordObstacleAttempt = (areaKey, entryId, worked) => {
+	                if (!areaKey || !entryId || !state.lifeAreas[areaKey]) return;
+	                const area = state.lifeAreas[areaKey];
+	                const list = Array.isArray(area.obstaclesSolutions) ? area.obstaclesSolutions : [];
+	                const nowIso = new Date().toISOString();
+	                const nextList = list.map((item) => {
+	                    if (!item || item.id !== entryId) return item;
+	                    const tried = (item.triedCount || 0) + 1;
+	                    const workedCount = (item.workedCount || 0) + (worked ? 1 : 0);
+	                    return { ...item, triedCount: tried, workedCount, lastTriedAt: nowIso };
+	                });
+
+	                const newState = {
+	                    ...state,
+	                    lifeAreas: {
+	                        ...state.lifeAreas,
+	                        [areaKey]: {
+	                            ...area,
+	                            obstaclesSolutions: nextList
+	                        }
+	                    }
+	                };
+	                saveState(newState);
+	            };
+
+	            const deleteObstacleSolution = (areaKey, entryId) => {
+	                if (!areaKey || !entryId || !state.lifeAreas[areaKey]) return;
+	                const area = state.lifeAreas[areaKey];
+	                const list = Array.isArray(area.obstaclesSolutions) ? area.obstaclesSolutions : [];
+	                const nextList = list.filter((item) => item && item.id !== entryId);
+
+	                const newState = {
+	                    ...state,
+	                    lifeAreas: {
+	                        ...state.lifeAreas,
+	                        [areaKey]: {
+	                            ...area,
+	                            obstaclesSolutions: nextList
+	                        }
+	                    }
+	                };
+	                saveState(newState);
+	            };
 
             // Export data
             const exportData = () => {
@@ -1999,26 +2125,31 @@
                                     />
                                 )}
 
-                                {currentView === 'progress' && (
-                                    <ProgressTracker
-                                        lifeAreas={state.lifeAreas}
-                                        activeAreas={activeAreas}
-                                    />
-                                )}
+	                                {currentView === 'progress' && (
+	                                    <ProgressTracker
+	                                        lifeAreas={state.lifeAreas}
+	                                        activeAreas={activeAreas}
+	                                        dayNotes={state.dayNotes}
+	                                        setDayNote={setDayNote}
+	                                    />
+	                                )}
 
-                                {currentView === 'reflect' && (
-                                    <Reflection
-                                        lifeAreas={state.lifeAreas}
-                                        activeAreas={activeAreas}
-                                        selectedLifeArea={selectedLifeArea}
-                                        setSelectedLifeArea={setSelectedLifeArea}
-                                        saveMonthlyReview={saveMonthlyReview}
-                                        getCurrentMonthReview={getCurrentMonthReview}
-                                        saveQuarterlyReview={saveQuarterlyReview}
-                                        getCurrentQuarterReview={getCurrentQuarterReview}
-                                        toggleLifeArea={toggleLifeArea}
-                                    />
-                                )}
+	                                {currentView === 'reflect' && (
+	                                    <Reflection
+	                                        lifeAreas={state.lifeAreas}
+	                                        activeAreas={activeAreas}
+	                                        selectedLifeArea={selectedLifeArea}
+	                                        setSelectedLifeArea={setSelectedLifeArea}
+	                                        saveMonthlyReview={saveMonthlyReview}
+	                                        getCurrentMonthReview={getCurrentMonthReview}
+	                                        saveQuarterlyReview={saveQuarterlyReview}
+	                                        getCurrentQuarterReview={getCurrentQuarterReview}
+	                                        addObstacleSolution={addObstacleSolution}
+	                                        recordObstacleAttempt={recordObstacleAttempt}
+	                                        deleteObstacleSolution={deleteObstacleSolution}
+	                                        toggleLifeArea={toggleLifeArea}
+	                                    />
+	                                )}
 
 	                                {currentView === 'settings' && (
 	                                    <Settings
@@ -2178,26 +2309,31 @@
                             />
                         )}
 
-                        {currentView === 'progress' && (
-                            <ProgressTracker
-                                lifeAreas={state.lifeAreas}
-                                activeAreas={activeAreas}
-                            />
-                        )}
+	                        {currentView === 'progress' && (
+	                            <ProgressTracker
+	                                lifeAreas={state.lifeAreas}
+	                                activeAreas={activeAreas}
+	                                dayNotes={state.dayNotes}
+	                                setDayNote={setDayNote}
+	                            />
+	                        )}
 
-                        {currentView === 'reflect' && (
-                            <Reflection
-                                lifeAreas={state.lifeAreas}
-                                activeAreas={activeAreas}
-                                selectedLifeArea={selectedLifeArea}
-                                setSelectedLifeArea={setSelectedLifeArea}
-                                saveMonthlyReview={saveMonthlyReview}
-                                getCurrentMonthReview={getCurrentMonthReview}
-                                saveQuarterlyReview={saveQuarterlyReview}
-                                getCurrentQuarterReview={getCurrentQuarterReview}
-                                toggleLifeArea={toggleLifeArea}
-                            />
-                        )}
+	                        {currentView === 'reflect' && (
+	                            <Reflection
+	                                lifeAreas={state.lifeAreas}
+	                                activeAreas={activeAreas}
+	                                selectedLifeArea={selectedLifeArea}
+	                                setSelectedLifeArea={setSelectedLifeArea}
+	                                saveMonthlyReview={saveMonthlyReview}
+	                                getCurrentMonthReview={getCurrentMonthReview}
+	                                saveQuarterlyReview={saveQuarterlyReview}
+	                                getCurrentQuarterReview={getCurrentQuarterReview}
+	                                addObstacleSolution={addObstacleSolution}
+	                                recordObstacleAttempt={recordObstacleAttempt}
+	                                deleteObstacleSolution={deleteObstacleSolution}
+	                                toggleLifeArea={toggleLifeArea}
+	                            />
+	                        )}
 
 	                        {currentView === 'settings' && (
 	                            <Settings
@@ -2364,9 +2500,12 @@
             getCurrentMonthReview, 
             saveQuarterlyReview, 
             getCurrentQuarterReview, 
+            addObstacleSolution,
+            recordObstacleAttempt,
+            deleteObstacleSolution,
             toggleLifeArea 
         }) {
-            const [reflectionType, setReflectionType] = React.useState('monthly'); // 'monthly' or 'quarterly'
+            const [reflectionType, setReflectionType] = React.useState('monthly'); // 'monthly' | 'quarterly' | 'obstacles'
 
             return (
                 <div className="space-y-8 fade-in">
@@ -2393,6 +2532,16 @@
                             >
                                 Quarterly
                             </button>
+                            <button
+                                onClick={() => setReflectionType('obstacles')}
+                                className={`px-8 py-3 rounded-xl text-sm font-bold tracking-wider uppercase transition-all ${
+                                    reflectionType === 'obstacles'
+                                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                Obstacles
+                            </button>
                         </div>
                     </div>
 
@@ -2406,7 +2555,7 @@
                             getCurrentMonthReview={getCurrentMonthReview}
                             toggleLifeArea={toggleLifeArea}
                         />
-                    ) : (
+                    ) : reflectionType === 'quarterly' ? (
                         <QuarterlyReview
                             lifeAreas={lifeAreas}
                             activeAreas={activeAreas}
@@ -2416,7 +2565,305 @@
                             getCurrentQuarterReview={getCurrentQuarterReview}
                             toggleLifeArea={toggleLifeArea}
                         />
+                    ) : (
+                        <ObstaclesSolutionsTracker
+                            lifeAreas={lifeAreas}
+                            activeAreas={activeAreas}
+                            addObstacleSolution={addObstacleSolution}
+                            recordObstacleAttempt={recordObstacleAttempt}
+                            deleteObstacleSolution={deleteObstacleSolution}
+                        />
                     )}
+                </div>
+            );
+        }
+
+        function ObstaclesSolutionsTracker({ lifeAreas, activeAreas, addObstacleSolution, recordObstacleAttempt, deleteObstacleSolution }) {
+            const [scopeArea, setScopeArea] = React.useState('all'); // 'all' | areaKey
+            const [newObstacle, setNewObstacle] = React.useState('');
+            const [newSolution, setNewSolution] = React.useState('');
+
+            React.useEffect(() => {
+                if (scopeArea === 'all') return;
+                if (!activeAreas.includes(scopeArea)) setScopeArea('all');
+            }, [scopeArea, activeAreas]);
+
+            const normalize = (s) => String(s || '').trim().toLowerCase();
+
+            const reviewPairs = [];
+            activeAreas.forEach((areaKey) => {
+                if (scopeArea !== 'all' && areaKey !== scopeArea) return;
+                const area = lifeAreas[areaKey];
+                const monthly = area && area.reviews && Array.isArray(area.reviews.monthly) ? area.reviews.monthly : [];
+                monthly.forEach((review) => {
+                    const obstacles = review && Array.isArray(review.obstacles) ? review.obstacles : [];
+                    const solutions = review && Array.isArray(review.solutions) ? review.solutions : [];
+                    for (let i = 0; i < Math.max(obstacles.length, solutions.length, 3); i++) {
+                        const obstacle = (obstacles[i] || '').trim();
+                        const solution = (solutions[i] || '').trim();
+                        if (!obstacle) continue;
+                        reviewPairs.push({
+                            areaKey,
+                            month: review && review.date ? String(review.date) : null,
+                            obstacle,
+                            solution
+                        });
+                    }
+                });
+            });
+
+            const aggregated = {};
+            reviewPairs.forEach((item) => {
+                const key = normalize(item.obstacle);
+                if (!key) return;
+                if (!aggregated[key]) {
+                    aggregated[key] = {
+                        obstacle: item.obstacle,
+                        count: 0,
+                        areas: new Set(),
+                        lastSeen: item.month || null,
+                        solutions: {}
+                    };
+                }
+                const row = aggregated[key];
+                row.count += 1;
+                row.areas.add(item.areaKey);
+                if (item.month && (!row.lastSeen || item.month > row.lastSeen)) row.lastSeen = item.month;
+                if (item.solution) {
+                    const sKey = normalize(item.solution);
+                    if (!row.solutions[sKey]) row.solutions[sKey] = { text: item.solution, count: 0 };
+                    row.solutions[sKey].count += 1;
+                }
+            });
+
+            const aggregatedList = Object.values(aggregated)
+                .map((row) => {
+                    const topSolutions = Object.values(row.solutions)
+                        .sort((a, b) => (b.count || 0) - (a.count || 0))
+                        .slice(0, 3);
+                    return {
+                        obstacle: row.obstacle,
+                        count: row.count,
+                        lastSeen: row.lastSeen,
+                        areasCount: row.areas.size,
+                        topSolutions
+                    };
+                })
+                .sort((a, b) => (b.count || 0) - (a.count || 0));
+
+            const pinned = scopeArea !== 'all' && lifeAreas[scopeArea] && Array.isArray(lifeAreas[scopeArea].obstaclesSolutions)
+                ? lifeAreas[scopeArea].obstaclesSolutions
+                : [];
+            const pinnedSet = new Set(pinned.map((p) => normalize(p && p.obstacle)));
+
+            return (
+                <div className="space-y-8 fade-in">
+                    <div className="glass rounded-2xl p-8 border-l-4 border-amber-500">
+                        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 mb-2">
+                            Obstacles & Solutions
+                        </h2>
+                        <p className="text-slate-400 text-lg">
+                            Spot patterns, pin solutions, and track what actually works.
+                        </p>
+                    </div>
+
+                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Scope</label>
+                                <select
+                                    value={scopeArea}
+                                    onChange={(e) => setScopeArea(e.target.value)}
+                                    className="px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                >
+                                    <option value="all">All Active Areas</option>
+                                    {activeAreas.map((areaKey) => (
+                                        <option key={areaKey} value={areaKey}>
+                                            {LIFE_AREAS[areaKey]?.icon || ''} {LIFE_AREAS[areaKey]?.name || areaKey}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="text-xs text-slate-500">
+                                    Aggregates obstacles from your Monthly Reflections (Q4/Q5).
+                                </div>
+                            </div>
+
+                            {scopeArea !== 'all' && (
+                                <div className="flex-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Add a pinned obstacle</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                                        <input
+                                            value={newObstacle}
+                                            onChange={(e) => setNewObstacle(e.target.value)}
+                                            className="px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all"
+                                            placeholder="Obstacle (e.g., 'No time after work')"
+                                        />
+                                        <input
+                                            value={newSolution}
+                                            onChange={(e) => setNewSolution(e.target.value)}
+                                            className="px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition-all"
+                                            placeholder="Solution (optional)"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-3 mt-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (typeof addObstacleSolution === 'function') addObstacleSolution(scopeArea, newObstacle, newSolution);
+                                                setNewObstacle('');
+                                                setNewSolution('');
+                                            }}
+                                            className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold shadow-lg hover:shadow-orange-500/30 transition-all transform hover:-translate-y-0.5"
+                                        >
+                                            Add
+                                        </button>
+                                        <div className="text-xs text-slate-500">
+                                            Pinned items are saved to this life area.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {scopeArea !== 'all' && (
+                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                            <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                                Pinned ({pinned.length})
+                            </h3>
+                            {pinned.length === 0 ? (
+                                <div className="text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl p-6 text-center">
+                                    Pin obstacles you want to actively work on.
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {pinned.map((item) => {
+                                        const tried = item.triedCount || 0;
+                                        const worked = item.workedCount || 0;
+                                        const rate = tried > 0 ? Math.round((worked / tried) * 100) : null;
+                                        return (
+                                            <div key={item.id} className="rounded-2xl border border-slate-700/60 bg-slate-800/30 p-5">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <div className="text-white font-bold">{item.obstacle}</div>
+                                                        {item.solution && (
+                                                            <div className="text-slate-300 mt-2">
+                                                                <span className="text-slate-500 font-mono text-xs mr-2">Solution</span>
+                                                                {item.solution}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-xs text-slate-500 mt-3">
+                                                            Tried: <span className="text-slate-300 font-mono">{tried}</span> · Worked: <span className="text-slate-300 font-mono">{worked}</span>
+                                                            {rate !== null && (
+                                                                <>
+                                                                    {' '}· Success: <span className="text-emerald-300 font-mono">{rate}%</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const ok = window.confirm('Delete this pinned obstacle?');
+                                                            if (!ok) return;
+                                                            if (typeof deleteObstacleSolution === 'function') deleteObstacleSolution(scopeArea, item.id);
+                                                        }}
+                                                        className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-200 border border-red-500/30"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2 mt-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => typeof recordObstacleAttempt === 'function' && recordObstacleAttempt(scopeArea, item.id, true)}
+                                                        className="px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30 text-sm font-bold"
+                                                    >
+                                                        Tried (worked)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => typeof recordObstacleAttempt === 'function' && recordObstacleAttempt(scopeArea, item.id, false)}
+                                                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-bold"
+                                                    >
+                                                        Tried (didn’t)
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                            From Monthly Reflections ({aggregatedList.length})
+                        </h3>
+                        {aggregatedList.length === 0 ? (
+                            <div className="text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl p-6 text-center">
+                                No obstacles found yet. Fill out Monthly Reflections to start building patterns.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {aggregatedList.slice(0, 30).map((row, idx) => (
+                                    <div key={`${row.obstacle}:${idx}`} className="rounded-2xl border border-slate-700/60 bg-slate-800/30 p-5">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-white font-bold">{row.obstacle}</div>
+                                                    <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-slate-700 bg-slate-900/40 text-slate-300">
+                                                        ×{row.count}
+                                                    </span>
+                                                    {scopeArea === 'all' && (
+                                                        <span className="text-xs text-slate-500">
+                                                            in {row.areasCount} area{row.areasCount === 1 ? '' : 's'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {row.topSolutions.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                        {row.topSolutions.map((s, sIdx) => (
+                                                            <span
+                                                                key={`${row.obstacle}:sol:${sIdx}`}
+                                                                className="px-3 py-1.5 rounded-full text-xs font-bold border bg-slate-900/30 border-slate-700 text-slate-200"
+                                                                title={`Mentioned ${s.count} time${s.count === 1 ? '' : 's'}`}
+                                                            >
+                                                                {s.text}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {row.lastSeen && (
+                                                    <div className="text-xs text-slate-500 mt-3">
+                                                        Last seen: <span className="font-mono text-slate-300">{row.lastSeen}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {scopeArea !== 'all' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const suggestedSolution = row.topSolutions && row.topSolutions[0] ? row.topSolutions[0].text : '';
+                                                        if (typeof addObstacleSolution === 'function') addObstacleSolution(scopeArea, row.obstacle, suggestedSolution);
+                                                    }}
+                                                    disabled={pinnedSet.has(normalize(row.obstacle))}
+                                                    className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                                                        pinnedSet.has(normalize(row.obstacle))
+                                                            ? 'bg-slate-800/40 border-slate-700 text-slate-500 cursor-not-allowed'
+                                                            : 'bg-amber-500/10 hover:bg-amber-500/15 text-amber-200 border-amber-500/30'
+                                                    }`}
+                                                >
+                                                    {pinnedSet.has(normalize(row.obstacle)) ? 'Pinned' : 'Pin'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
         }
@@ -4281,23 +4728,38 @@
             );
         }
 
-        // ==========================================
-        // PROGRESS TRACKER
-        // ==========================================
-        function ProgressTracker({ lifeAreas, activeAreas }) {
-            const [selectedAreaScope, setSelectedAreaScope] = React.useState('all'); // 'all' or areaKey
-            const [rangeDays, setRangeDays] = React.useState(30); // 7 / 30 / 90
+	        // ==========================================
+	        // PROGRESS TRACKER
+	        // ==========================================
+	        function ProgressTracker({ lifeAreas, activeAreas, dayNotes = {}, setDayNote }) {
+	            const [selectedAreaScope, setSelectedAreaScope] = React.useState('all'); // 'all' or areaKey
+	            const [rangeDays, setRangeDays] = React.useState(30); // 7 / 30 / 90
+	            const [viewMode, setViewMode] = React.useState('month'); // month | range
+	            const [monthCursor, setMonthCursor] = React.useState(() => {
+	                const d = new Date();
+	                const y = d.getFullYear();
+	                const m = String(d.getMonth() + 1).padStart(2, '0');
+	                return `${y}-${m}`;
+	            });
+	            const [openDay, setOpenDay] = React.useState(null);
+	            const [noteDraft, setNoteDraft] = React.useState('');
 
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = (dateObj = new Date()) => {
-                const offset = dateObj.getTimezoneOffset() * 60000;
-                return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
-            };
+	            // Helper to get local date string YYYY-MM-DD
+	            const getLocalDateString = (dateObj = new Date()) => {
+	                const offset = dateObj.getTimezoneOffset() * 60000;
+	                return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
+	            };
 
-            React.useEffect(() => {
-                if (selectedAreaScope === 'all') return;
-                if (!activeAreas.includes(selectedAreaScope)) setSelectedAreaScope('all');
-            }, [selectedAreaScope, activeAreas]);
+	            React.useEffect(() => {
+	                if (!openDay) return;
+	                const existing = dayNotes && dayNotes[openDay] ? dayNotes[openDay].text : '';
+	                setNoteDraft(existing || '');
+	            }, [openDay, dayNotes]);
+
+	            React.useEffect(() => {
+	                if (selectedAreaScope === 'all') return;
+	                if (!activeAreas.includes(selectedAreaScope)) setSelectedAreaScope('all');
+	            }, [selectedAreaScope, activeAreas]);
 
             const parseLocalDate = (dateStr) => {
                 const [y, m, d] = String(dateStr).split('-').map(Number);
@@ -4354,18 +4816,37 @@
                 return d;
             })();
 
-            const filteredCompletions = allCompletionsAllActive.filter((comp) => {
-                if (!comp || !comp.date) return false;
-                if (selectedAreaScope !== 'all' && comp.lifeArea !== selectedAreaScope) return false;
-                const d = parseLocalDate(comp.date);
-                d.setHours(0, 0, 0, 0);
-                return d >= startDate;
-            });
+	            const filteredCompletions = allCompletionsAllActive.filter((comp) => {
+	                if (!comp || !comp.date) return false;
+	                if (selectedAreaScope !== 'all' && comp.lifeArea !== selectedAreaScope) return false;
+	                const d = parseLocalDate(comp.date);
+	                d.setHours(0, 0, 0, 0);
+	                return d >= startDate;
+	            });
 
-            const completionMap = filteredCompletions.reduce((acc, comp) => {
-                acc[comp.date] = true;
-                return acc;
-            }, {});
+	            const scopedCompletionsAllTime = allCompletionsAllActive.filter((comp) => {
+	                if (!comp || !comp.date) return false;
+	                if (selectedAreaScope !== 'all' && comp.lifeArea !== selectedAreaScope) return false;
+	                return true;
+	            });
+
+	            const monthCompletions = scopedCompletionsAllTime.filter((comp) => String(comp.date).startsWith(monthCursor));
+	            const monthCompletionByDate = monthCompletions.reduce((acc, comp) => {
+	                const key = comp.date;
+	                if (!acc[key]) acc[key] = [];
+	                acc[key].push(comp);
+	                return acc;
+	            }, {});
+
+	            const completionMap = filteredCompletions.reduce((acc, comp) => {
+	                acc[comp.date] = true;
+	                return acc;
+	            }, {});
+
+	            const monthCompletionMap = monthCompletions.reduce((acc, comp) => {
+	                acc[comp.date] = true;
+	                return acc;
+	            }, {});
 
             const completedDays = lastNDays.filter(date => completionMap[date]).length;
             const completionRate = Math.round((completedDays / rangeDays) * 100);
@@ -4382,9 +4863,9 @@
                 }
             }
 
-            return (
-                <div className="space-y-8 fade-in text-white">
-                    <div className="text-center mb-10">
+	            return (
+	                <div className="space-y-8 fade-in text-white">
+	                    <div className="text-center mb-10">
                         <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-white/10 mb-4 backdrop-blur-sm">
                             <span className="text-5xl drop-shadow-lg filter">📈</span>
                         </div>
@@ -4394,10 +4875,10 @@
                         </p>
                     </div>
 
-                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
-                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Life Area</label>
+	                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+	                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+	                            <div className="flex flex-col gap-2">
+	                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Life Area</label>
                                 <select
                                     value={selectedAreaScope}
                                     onChange={(e) => setSelectedAreaScope(e.target.value)}
@@ -4410,11 +4891,11 @@
                                         </option>
                                     ))}
                                 </select>
-                            </div>
+	                            </div>
 
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date Range</label>
-                                <div className="flex items-center gap-2">
+	                            <div className="flex flex-col gap-2">
+	                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date Range</label>
+	                                <div className="flex items-center gap-2">
                                     {[7, 30, 90].map((d) => (
                                         <button
                                             key={d}
@@ -4428,14 +4909,89 @@
                                         >
                                             {d}d
                                         </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-4">
-                            Showing {selectedAreaScope === 'all' ? 'all active areas' : (LIFE_AREAS[selectedAreaScope]?.name || selectedAreaScope)} over the last {rangeDays} days.
-                        </div>
-                    </div>
+	                                    ))}
+	                                </div>
+	                            </div>
+	                        </div>
+	                        <div className="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+	                            <div className="flex items-center gap-2">
+	                                <button
+	                                    type="button"
+	                                    onClick={() => setViewMode('month')}
+	                                    className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+	                                        viewMode === 'month'
+	                                            ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+	                                            : 'bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+	                                    }`}
+	                                >
+	                                    Month
+	                                </button>
+	                                <button
+	                                    type="button"
+	                                    onClick={() => setViewMode('range')}
+	                                    className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+	                                        viewMode === 'range'
+	                                            ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-200'
+	                                            : 'bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+	                                    }`}
+	                                >
+	                                    Range
+	                                </button>
+	                            </div>
+
+	                            {viewMode === 'month' && (
+	                                <div className="flex items-center gap-2">
+	                                    <button
+	                                        type="button"
+	                                        onClick={() => {
+	                                            const [y, m] = monthCursor.split('-').map(Number);
+	                                            const d = new Date(y, (m || 1) - 1, 1);
+	                                            d.setMonth(d.getMonth() - 1);
+	                                            setMonthCursor(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+	                                        }}
+	                                        className="px-3 py-2 rounded-xl border bg-slate-800/40 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all"
+	                                        title="Previous month"
+	                                    >
+	                                        ←
+	                                    </button>
+	                                    <div className="px-4 py-2 rounded-xl border border-slate-700 bg-slate-900/40 text-slate-200 text-sm font-bold">
+	                                        {(() => {
+	                                            const [y, m] = monthCursor.split('-').map(Number);
+	                                            const d = new Date(y, (m || 1) - 1, 1);
+	                                            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+	                                        })()}
+	                                    </div>
+	                                    <button
+	                                        type="button"
+	                                        onClick={() => {
+	                                            const d = new Date();
+	                                            setMonthCursor(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+	                                        }}
+	                                        className="px-3 py-2 rounded-xl border bg-slate-800/40 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all"
+	                                        title="Jump to current month"
+	                                    >
+	                                        Today
+	                                    </button>
+	                                    <button
+	                                        type="button"
+	                                        onClick={() => {
+	                                            const [y, m] = monthCursor.split('-').map(Number);
+	                                            const d = new Date(y, (m || 1) - 1, 1);
+	                                            d.setMonth(d.getMonth() + 1);
+	                                            setMonthCursor(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+	                                        }}
+	                                        className="px-3 py-2 rounded-xl border bg-slate-800/40 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all"
+	                                        title="Next month"
+	                                    >
+	                                        →
+	                                    </button>
+	                                </div>
+	                            )}
+	                        </div>
+	                        <div className="text-xs text-slate-500 mt-4">
+	                            Showing {selectedAreaScope === 'all' ? 'all active areas' : (LIFE_AREAS[selectedAreaScope]?.name || selectedAreaScope)} over the last {rangeDays} days.
+	                        </div>
+	                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="glass rounded-2xl p-6 border border-blue-500/30 bg-blue-500/5 text-center group hover:bg-blue-500/10 transition-colors">
@@ -4463,59 +5019,224 @@
                         </div>
                     </div>
 
-                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
-                        <h3 className="text-xl font-bold text-white mb-6 flex items-center">
-                            Last {rangeDays} Days
-                        </h3>
-                        <div
-                            className="grid gap-3"
-                            style={{
-                                gridTemplateColumns: `repeat(${rangeDays === 7 ? 7 : rangeDays === 30 ? 10 : 15}, minmax(0, 1fr))`
-                            }}
-                        >
-                            {lastNDays.map((date, i) => {
-                                const isCompleted = completionMap[date];
-                                const [y, m, d] = date.split('-').map(Number);
-                                const dateObj = new Date(y, m - 1, d);
-                                const isToday = date === todayStr;
+	                    {viewMode === 'range' ? (
+	                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+	                            <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+	                                Last {rangeDays} Days
+	                            </h3>
+	                            <div
+	                                className="grid gap-3"
+	                                style={{
+	                                    gridTemplateColumns: `repeat(${rangeDays === 7 ? 7 : rangeDays === 30 ? 10 : 15}, minmax(0, 1fr))`
+	                                }}
+	                            >
+	                                {lastNDays.map((date, i) => {
+	                                    const isCompleted = completionMap[date];
+	                                    const [y, m, d] = date.split('-').map(Number);
+	                                    const dateObj = new Date(y, m - 1, d);
+	                                    const isToday = date === todayStr;
 
-                                return (
-                                    <div
-                                        key={date}
-                                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition-all duration-300 relative group cursor-default ${isCompleted
-                                            ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)] scale-105 z-10'
-                                            : isToday
-                                                ? 'bg-slate-800 border-2 border-indigo-500 text-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.3)]'
-                                                : 'bg-slate-800/50 text-slate-600 hover:bg-slate-800 hover:text-slate-400'
-                                            }`}
-                                        title={dateObj.toLocaleDateString()}
-                                        style={{ transitionDelay: `${i * 10}ms` }}
-                                    >
-                                        <div className="font-bold">{dateObj.getDate()}</div>
-                                        {isCompleted && (
-                                            <div className="absolute inset-0 bg-emerald-400 rounded-lg blur opacity-20"></div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+	                                    return (
+	                                        <div
+	                                            key={date}
+	                                            className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition-all duration-300 relative group cursor-default ${isCompleted
+	                                                ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)] scale-105 z-10'
+	                                                : isToday
+	                                                    ? 'bg-slate-800 border-2 border-indigo-500 text-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.3)]'
+	                                                    : 'bg-slate-800/50 text-slate-600 hover:bg-slate-800 hover:text-slate-400'
+	                                                }`}
+	                                            title={dateObj.toLocaleDateString()}
+	                                            style={{ transitionDelay: `${i * 10}ms` }}
+	                                        >
+	                                            <div className="font-bold">{dateObj.getDate()}</div>
+	                                            {isCompleted && (
+	                                                <div className="absolute inset-0 bg-emerald-400 rounded-lg blur opacity-20"></div>
+	                                            )}
+	                                        </div>
+	                                    );
+	                                })}
+	                            </div>
+	                        </div>
+	                    ) : (
+	                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+	                            <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+	                                Calendar
+	                            </h3>
+	                            <div className="grid grid-cols-7 gap-2 text-xs text-slate-500 mb-3">
+	                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+	                                    <div key={d} className="text-center font-bold uppercase tracking-widest">{d}</div>
+	                                ))}
+	                            </div>
+	                            {(() => {
+	                                const [y, m] = monthCursor.split('-').map(Number);
+	                                const first = new Date(y, (m || 1) - 1, 1);
+	                                const daysInMonth = new Date(y, (m || 1), 0).getDate();
+	                                const startDow = first.getDay(); // 0=Sun
+	                                const cells = [];
+	                                for (let i = 0; i < startDow; i++) cells.push(null);
+	                                for (let day = 1; day <= daysInMonth; day++) {
+	                                    const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+	                                    cells.push(dateStr);
+	                                }
+	                                while (cells.length % 7 !== 0) cells.push(null);
 
-                    <div className="glass rounded-2xl p-8 border border-slate-700/50 min-h-[400px]">
-                        <h3 className="text-xl font-bold text-white mb-6">Recent Completions</h3>
-                        {filteredCompletions.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl">
-                                <span className="text-4xl mb-3 opacity-50">🏆</span>
-                                <p className="text-center">No completions in this range.</p>
-                                <p className="text-sm opacity-60">Try expanding the date range or switching to All Active Areas.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {filteredCompletions
-                                    .slice()
-                                    .sort((a, b) => new Date(b.date) - new Date(a.date))
-                                    .slice(0, 10)
-                                    .map((completion, index) => {
+	                                return (
+	                                    <div className="grid grid-cols-7 gap-2">
+	                                        {cells.map((date, idx) => {
+	                                            if (!date) return <div key={`blank-${idx}`} className="aspect-square rounded-lg bg-slate-800/20 border border-slate-800/30" />;
+	                                            const isToday = date === todayStr;
+	                                            const isCompleted = Boolean(monthCompletionMap[date]);
+	                                            const note = dayNotes && dayNotes[date] && dayNotes[date].text ? dayNotes[date].text : '';
+	                                            const count = monthCompletionByDate[date] ? monthCompletionByDate[date].length : 0;
+	                                            return (
+	                                                <button
+	                                                    key={date}
+	                                                    type="button"
+	                                                    onClick={() => setOpenDay(date)}
+	                                                    className={`aspect-square rounded-lg border text-left p-2 flex flex-col justify-between transition-all ${
+	                                                        isCompleted
+	                                                            ? 'bg-emerald-500/15 border-emerald-500/30 hover:bg-emerald-500/20'
+	                                                            : isToday
+	                                                                ? 'bg-slate-800 border-indigo-500/50 hover:border-indigo-500'
+	                                                                : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800 hover:border-slate-600'
+	                                                    }`}
+	                                                    title={date}
+	                                                >
+	                                                    <div className={`text-xs font-bold ${isToday ? 'text-indigo-300' : 'text-slate-200'}`}>
+	                                                        {Number(date.slice(-2))}
+	                                                    </div>
+	                                                    <div className="flex items-center justify-between gap-2">
+	                                                        <div className="flex items-center gap-1">
+	                                                            {count > 0 && (
+	                                                                <>
+	                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+	                                                                    {count > 1 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70"></span>}
+	                                                                    {count > 2 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50"></span>}
+	                                                                </>
+	                                                            )}
+	                                                        </div>
+	                                                        {note && (
+	                                                            <span className="text-[10px] text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 rounded">
+	                                                                Note
+	                                                            </span>
+	                                                        )}
+	                                                    </div>
+	                                                </button>
+	                                            );
+	                                        })}
+	                                    </div>
+	                                );
+	                            })()}
+	                        </div>
+	                    )}
+
+	                    {openDay && (
+	                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setOpenDay(null)}>
+	                            <div className="w-full max-w-2xl glass rounded-2xl border border-slate-700/60 p-6" onClick={(e) => e.stopPropagation()}>
+	                                <div className="flex items-start justify-between gap-4">
+	                                    <div>
+	                                        <div className="text-xl font-bold text-white">
+	                                            {(() => {
+	                                                const [y, m, d] = openDay.split('-').map(Number);
+	                                                const dateObj = new Date(y, m - 1, d);
+	                                                return dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+	                                            })()}
+	                                        </div>
+	                                        <div className="text-sm text-slate-400 mt-1">
+	                                            {selectedAreaScope === 'all'
+	                                                ? 'All active areas'
+	                                                : (LIFE_AREAS[selectedAreaScope]?.name || selectedAreaScope)}
+	                                        </div>
+	                                    </div>
+	                                    <button
+	                                        type="button"
+	                                        onClick={() => setOpenDay(null)}
+	                                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200"
+	                                    >
+	                                        Close
+	                                    </button>
+	                                </div>
+
+	                                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+	                                    <div className="space-y-3">
+	                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Completions</div>
+	                                        <div className="space-y-2">
+	                                            {(() => {
+	                                                const list = monthCompletionByDate[openDay] || [];
+	                                                if (!list.length) {
+	                                                    return (
+	                                                        <div className="text-sm text-slate-500 border border-slate-800/60 rounded-xl p-4 bg-slate-900/20">
+	                                                            No completions.
+	                                                        </div>
+	                                                    );
+	                                                }
+	                                                return list.map((c, idx) => (
+	                                                    <div key={`${openDay}:c:${idx}`} className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3">
+	                                                        <div className="flex items-center gap-2">
+	                                                            <span className="text-lg">{LIFE_AREAS[c.lifeArea]?.icon || '✓'}</span>
+	                                                            <div className="text-sm font-bold text-slate-200">{LIFE_AREAS[c.lifeArea]?.name || c.lifeArea}</div>
+	                                                        </div>
+	                                                        <div className="text-sm text-slate-200/90 mt-1">{c.goal || 'Completed Task'}</div>
+	                                                    </div>
+	                                                ));
+	                                            })()}
+	                                        </div>
+	                                    </div>
+
+	                                    <div className="space-y-3">
+	                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Note</div>
+	                                        <textarea
+	                                            value={noteDraft}
+	                                            onChange={(e) => setNoteDraft(e.target.value)}
+	                                            placeholder="Add context, wins, lessons, or blockers for this day..."
+	                                            className="w-full min-h-[180px] px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all resize-none"
+	                                        />
+	                                        <div className="flex items-center gap-2">
+	                                            <button
+	                                                type="button"
+	                                                onClick={() => {
+	                                                    if (typeof setDayNote === 'function') setDayNote(openDay, noteDraft);
+	                                                    setOpenDay(null);
+	                                                }}
+	                                                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold border border-indigo-500/30"
+	                                            >
+	                                                Save Note
+	                                            </button>
+	                                            <button
+	                                                type="button"
+	                                                onClick={() => {
+	                                                    setNoteDraft('');
+	                                                    if (typeof setDayNote === 'function') setDayNote(openDay, '');
+	                                                }}
+	                                                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+	                                            >
+	                                                Clear
+	                                            </button>
+	                                        </div>
+	                                        <div className="text-xs text-slate-500">
+	                                            Notes are stored in your data and will sync in cloud mode.
+	                                        </div>
+	                                    </div>
+	                                </div>
+	                            </div>
+	                        </div>
+	                    )}
+
+	                    <div className="glass rounded-2xl p-8 border border-slate-700/50 min-h-[400px]">
+	                        <h3 className="text-xl font-bold text-white mb-6">Recent Completions</h3>
+	                        {((viewMode === 'month') ? monthCompletions : filteredCompletions).length === 0 ? (
+	                            <div className="flex flex-col items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl">
+	                                <span className="text-4xl mb-3 opacity-50">🏆</span>
+	                                <p className="text-center">No completions in this range.</p>
+	                                <p className="text-sm opacity-60">Try expanding the date range or switching to All Active Areas.</p>
+	                            </div>
+	                        ) : (
+	                            <div className="space-y-4">
+	                                {((viewMode === 'month') ? monthCompletions : filteredCompletions)
+	                                    .slice()
+	                                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+	                                    .slice(0, 10)
+	                                    .map((completion, index) => {
                                         const areaInfo = LIFE_AREAS[completion.lifeArea];
                                         const [y, m, d] = completion.date.split('-').map(Number);
                                         const dateObj = new Date(y, m - 1, d);
