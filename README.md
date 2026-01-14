@@ -50,6 +50,7 @@ By default, your data is stored locally on your device. To sync across ALL your 
 - View inspirational quotes from the book
 - Quick overview of your weekly, monthly, and yearly goals
 - Visual domino effect showing how goals connect
+- Edit your Daily ONE Thing per life area directly from the Dashboard (autosave + templates)
 
 ### 2. Goals (Goal Setting to the Now)
 Set up your complete goal hierarchy:
@@ -71,14 +72,25 @@ Each level includes the Focusing Question to guide your thinking.
 
 ### 4. Progress Tracking
 - Track your daily completion streak
-- See completion rate over the last 30 days
-- Visual calendar showing completed days
+- See completion rate over the last 7/30/90 days
+- Filter Progress by life area or view All areas
+- Month calendar view with per-day detail and notes
 - Recent completions history
 - Celebrate your wins!
 
-### 5. Settings
+### 5. Reflection
+- Monthly reflection per life area
+- Quarterly reflection per life area
+- Reflection history browser (monthly + quarterly)
+- Obstacles tracker (patterns + pinned obstacles + weekly focus + attempt timeline linked to day notes)
+
+### 6. Settings
 - **Export Data**: Download a backup of all your goals and progress
 - **Import Data**: Restore from a backup file
+- **Demo / Reset**: Load demo data or clear all data (with safety prompts in cloud mode)
+- **Storage & Cleanup**: Monitor local storage usage and optionally archive older history
+- **Build stamp**: Visible version/build date to confirm what’s deployed
+- **Cloud sync diagnostics** (cloud mode): Online/offline, last save/sync, sync log, retry save
 - All data stored locally in your browser for privacy
 
 ## How to Use The ONE Thing Method
@@ -157,10 +169,15 @@ The system is designed for weekly use - update your 4 goals each week, pick THE 
 
 ## Data & Privacy
 
-- All data is stored locally in your browser (localStorage)
-- No information is sent to any server
-- Your data never leaves your computer
-- Use Export/Import to backup or transfer between devices
+- **Local-only mode (default on localhost):** Your data is stored in your browser (localStorage) and stays on that device.
+- **Cloud sync mode (optional):** If Firebase is configured and cloud mode is enabled, your data is stored in your Firebase project’s Firestore for cross-device sync. It’s still private to your signed-in account.
+- Use `Settings → Export Data` regularly as a portable backup.
+
+## Local Testing Notes
+
+- Run locally with `python3 -m http.server 8000` then open `http://localhost:8000`.
+- On `localhost`, the app defaults to **local-only mode** (safe for testing).
+- To test cloud sync on `localhost`, add `?cloud=1` (example: `http://localhost:8000/?cloud=1`).
 
 ## Troubleshooting
 
@@ -174,9 +191,15 @@ The system is designed for weekly use - update your 4 goals each week, pick THE 
 - Clearing browser data will erase app data
 
 ### Want to use on multiple devices?
+Option A (manual):
 1. Export your data on device 1
-2. Transfer the .json file to device 2
+2. Transfer the `.json` file to device 2
 3. Import the data on device 2
+
+Option B (cloud sync):
+1. Follow `FIREBASE_SETUP.md`
+2. Deploy (or test on `localhost` with `?cloud=1`)
+3. Sign in and your data will sync across devices
 
 ## The Focusing Question
 
