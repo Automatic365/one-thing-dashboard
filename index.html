@@ -1828,6 +1828,24 @@
 
 	            return (
 	                <div className="min-h-screen">
+	                    {isLocalhost && forceLocalOnly && isFirebaseConfigured && (
+	                        <div className="max-w-7xl mx-auto px-4 pt-4">
+	                            <div className="glass border border-yellow-500/30 rounded-xl p-4 flex items-start justify-between gap-4">
+	                                <div>
+	                                    <div className="font-bold text-yellow-300">Local test mode</div>
+	                                    <div className="text-sm text-slate-200/80 mt-1">
+	                                        Cloud sync is disabled on localhost to prevent accidental overwrites. Add <span className="font-mono">?cloud=1</span> to enable it.
+	                                    </div>
+	                                </div>
+	                                <a
+	                                    href={`${window.location.pathname}?cloud=1`}
+	                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-200 border border-slate-700"
+	                                >
+	                                    Enable Cloud Sync
+	                                </a>
+	                            </div>
+	                        </div>
+	                    )}
 	                    {syncError && (
 	                        <div className="max-w-7xl mx-auto px-4 pt-4">
 	                            <div className="glass border border-red-500/40 rounded-xl p-4 flex items-start justify-between gap-4">
