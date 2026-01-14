@@ -3,7 +3,7 @@
 ## Overview
 Add structured reflection and planning features based on The ONE Thing Planner to help users maintain accountability and adjust course monthly/quarterly.
 
-## Phase 0: Platform Stability & Release Hygiene (NEW)
+## Phase 0: Platform Stability & Release Hygiene (MOSTLY COMPLETED)
 
 These items are foundational and help prevent regressions like data wipes/reverts in production.
 
@@ -19,6 +19,11 @@ These items are foundational and help prevent regressions like data wipes/revert
 - **Testing / QA**:
   - Regression checklist for core flows (Goals add/remove, Dashboard set/complete, Progress reflects completion, Import/Export, Firebase login/sync)
   - “Demo data” seeding to quickly validate UI across views
+
+### Status (Phase 0)
+- Cloud sync hardening: ✅ shipped
+- Visible sync status: ✅ local/cloud indicator + last save/sync + error banner shipped (retry guidance: optional enhancement)
+- Testing / QA: ✅ `REGRESSION_CHECKLIST.md` + demo data shipped
 
 ## Phase 1: Monthly Review (COMPLETED)
 
@@ -82,54 +87,68 @@ These items are foundational and help prevent regressions like data wipes/revert
 - Quarterly variations (Q2: 25% goal check, Q3: 50% goal check) ✓
 - High-tech neon UI consistent with the rest of the app ✓
 
-## Phase 3: Dashboard & UX Enhancements (NEXT)
+## Phase 3: Dashboard & UX Enhancements (COMPLETED)
 
 ### Features
-- **Dashboard Goal Entry**: Ability to set/edit the daily goal directly from the Dashboard card (currently read-only until set in Goals tab).
-- **Smart Progress Tracking**: Ensure reverting a completion accurately updates the progress history/calendar.
+- **Dashboard Goal Entry**: Ability to set/edit the daily goal directly from the Dashboard card ✅
+- **Smart Progress Tracking**: Reverting a completion accurately updates the progress history/calendar ✅
 - **Reminders & Notifications**:
-  - Monthly reflection reminder on the last day of the month.
-  - Quarterly reflection reminder on the last day of the quarter.
-  - Visual cues/badges when a review is due.
+  - Monthly reflection reminder on the last day of the month ✅
+  - Quarterly reflection reminder on the last day of the quarter ✅
+  - Visual cues/badges when a review is due ✅
 
 ### Additional UX Enhancements (ADDED)
 - **Per-Life-Area Progress Views**:
-  - Breakdown charts by life area
-  - Filters for date range (7/30/90 days)
-  - Optional “All areas vs selected area” toggles
+  - Filters for date range (7/30/90 days) ✅
+  - Optional “All areas vs selected area” toggles ✅
+  - Breakdown charts by life area (optional future enhancement)
 - **Dashboard Editing Polish**:
-  - Better “saved” feedback and keyboard-friendly interactions
-  - Optional autosave debounce (avoid writing on every keystroke)
-  - Optional quick-set templates for daily goals
+  - Better “saved” feedback and keyboard-friendly interactions ✅
+  - Optional autosave debounce (avoid writing on every keystroke) ✅
+  - Quick-set templates for daily goals (use Week/Month/Year + Copy Yesterday) ✅
 
-## Phase 4: Enhanced Calendar View (FUTURE)
-
-### Features
-- Monthly calendar layout in Progress tab
-- Visual accountability tracking (completed days highlighted)
-- Ability to add notes/context to specific days
-- See patterns in completion over time
-- Sticky note style annotations like the planner
-
-### Implementation Notes
-- Enhance existing Progress tab calendar
-- Add ability to click days for details
-- Show which life areas were completed each day
-- Monthly view with weekly breakdown
-
-## Phase 4: Obstacles & Solutions Tracking (FUTURE)
+## Phase 4: Enhanced Calendar View (COMPLETED)
 
 ### Features
-- Dedicated section to track recurring obstacles
-- Link solutions to specific obstacles
-- Track which solutions actually work over time
-- Suggested solutions based on past successes
-- Pattern recognition for common blockers
+- Monthly calendar layout in Progress tab ✅
+- Visual accountability tracking (completed days highlighted) ✅
+- Ability to add notes/context to specific days ✅
+- Click a day for details (completions + note) ✅
 
 ### Implementation Notes
-- Could be part of Reviews tab
-- Show trends: "You've identified 'time management' as an obstacle 3 times"
-- Success metrics: "This solution worked 4 out of 5 times"
+- Integrates with existing `All vs specific life area` + `7/30/90` filters
+- Notes are stored in app state and sync in cloud mode
+
+## Phase 4B: Obstacles & Solutions Tracking (COMPLETED)
+
+### Features
+- Dedicated section to track recurring obstacles ✅
+- Suggested solutions based on past successes (via aggregation) ✅
+- Track which solutions actually work over time (pinned items + tried/worked counters) ✅
+- Pattern recognition for common blockers (aggregation across monthly reviews) ✅
+
+### Implementation Notes
+- Implemented as `Reflect → Obstacles` view with scope (All vs specific life area)
+
+## Phase 5: Post‑Phase‑4 Improvements (NEXT)
+
+### Release Hygiene / Safety
+- Add a visible build/version stamp in Settings/About to confirm what’s deployed
+- Add “export first” nudges before destructive operations (e.g., clear/reset in cloud mode)
+- Expand sync diagnostics / retry guidance (keep it simple, avoid noisy UI)
+
+### Reflection History
+- Monthly review history browser (by month, per life area)
+- Quarterly review history browser (by quarter, per life area)
+- Completion status overview across active areas (which reviews are done/missing)
+
+### Progress Deep Dive
+- Per-area streaks and trend charts (7/30/90), optionally overlay notes
+- “Day detail” view improvements (show completions across areas when scoped to All)
+
+### Obstacles Tracker Upgrades
+- Link pinned obstacles to specific day notes / dates tried (lightweight timeline)
+- Add “recommended solution this week” workflow (pick one solution to focus on)
 
 ## Design Principles
 
@@ -148,5 +167,5 @@ These items are foundational and help prevent regressions like data wipes/revert
 
 ---
 
-**Status**: Phase 1 & 2 complete, Phase 3 (UX Enhancements) next priority
+**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5 next priority.
 **Last Updated**: January 14, 2026
