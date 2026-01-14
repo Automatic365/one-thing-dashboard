@@ -21,7 +21,7 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 ### ⏳ Later
 - 5.3 code organization + remaining 5.4/5.5 polish (only when it hurts)
 
-## Phase 0: Platform Stability & Release Hygiene (MOSTLY COMPLETED)
+## Phase 0: Platform Stability & Release Hygiene (COMPLETED)
 
 These items are foundational and help prevent regressions like data wipes/reverts in production.
 
@@ -40,7 +40,8 @@ These items are foundational and help prevent regressions like data wipes/revert
 
 ### Status (Phase 0)
 - Cloud sync hardening: ✅ shipped
-- Visible sync status: ✅ local/cloud indicator + last save/sync + error banner shipped (retry guidance: optional enhancement)
+- Visible sync status: ✅ local/cloud indicator + last save/sync + error banner + retry button shipped
+- Sync diagnostics: ✅ online/offline indicator + lightweight sync log shipped
 - Testing / QA: ✅ `REGRESSION_CHECKLIST.md` + demo data shipped
 
 ## Phase 1: Monthly Review (COMPLETED)
