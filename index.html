@@ -3287,28 +3287,22 @@
 	                                        {LIFE_AREAS[areaKey].name}
 	                                    </button>
 	
-	                                    <button
-	                                        type="button"
-	                                        onClick={(e) => {
-	                                            e.preventDefault();
-	                                            e.stopPropagation();
-	                                            if (activeAreas.length <= 1) return;
-	                                            const nextActiveAreas = activeAreas.filter(k => k !== areaKey);
-	                                            if (selectedLifeArea === areaKey && nextActiveAreas.length > 0) {
-	                                                setSelectedLifeArea(nextActiveAreas[0]);
-	                                            }
-	                                            toggleLifeArea(areaKey);
-	                                        }}
-	                                        disabled={activeAreas.length <= 1}
-	                                        title={activeAreas.length <= 1 ? 'At least one life area must remain active' : 'Remove life area'}
-	                                        className={`absolute -top-2 -right-2 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold transition-all ${
-	                                            activeAreas.length <= 1
-	                                                ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed opacity-50'
-	                                                : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-200'
-	                                        }`}
-	                                    >
-	                                        ×
-	                                    </button>
+		                                    <button
+		                                        type="button"
+		                                        onClick={(e) => {
+		                                            e.preventDefault();
+		                                            e.stopPropagation();
+		                                            const nextActiveAreas = activeAreas.filter(k => k !== areaKey);
+		                                            if (selectedLifeArea === areaKey && nextActiveAreas.length > 0) {
+		                                                setSelectedLifeArea(nextActiveAreas[0]);
+		                                            }
+		                                            toggleLifeArea(areaKey);
+		                                        }}
+		                                        title="Remove life area"
+		                                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold transition-all bg-slate-900 border-slate-700 text-slate-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-200"
+		                                    >
+		                                        ×
+		                                    </button>
 	                                </div>
 	                            ))}
 	                            {activeAreas.length < Object.keys(LIFE_AREAS).length && (
@@ -3321,17 +3315,19 @@
 	                                        + Add Area
 	                                    </button>
 	
-	                                    {addAreaMenuOpen && addAreaMenuRect && ReactDOM.createPortal(
-	                                        <div
-	                                            className="fixed inset-0 z-[9999]"
-	                                            onClick={() => setAddAreaMenuOpen(false)}
-	                                        >
-	                                            <div
-	                                                className="fixed z-[10000] p-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 min-w-[220px] backdrop-blur-xl"
-	                                                style={{
-	                                                    top: Math.min(addAreaMenuRect.bottom + 8, window.innerHeight - 280),
-	                                                    left: Math.min(addAreaMenuRect.left, window.innerWidth - 260)
-	                                                }}
+		                                    {addAreaMenuOpen && addAreaMenuRect && ReactDOM.createPortal(
+		                                        <div
+		                                            className="fixed inset-0"
+		                                            style={{ zIndex: 9999 }}
+		                                            onClick={() => setAddAreaMenuOpen(false)}
+		                                        >
+		                                            <div
+		                                                className="fixed p-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 min-w-[220px] backdrop-blur-xl"
+		                                                style={{
+		                                                    zIndex: 10000,
+		                                                    top: Math.min(addAreaMenuRect.bottom + 8, window.innerHeight - 280),
+		                                                    left: Math.min(addAreaMenuRect.left, window.innerWidth - 260)
+		                                                }}
 	                                                onClick={(evt) => {
 	                                                    evt.preventDefault();
 	                                                    evt.stopPropagation();
