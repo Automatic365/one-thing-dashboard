@@ -13,7 +13,7 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 - Phase 4 enhanced Progress calendar + day notes + obstacles tracker
 
 ### ▶️ Next
-- **5.1 Reflection History** (browse monthly/quarterly history + completion overview)
+- **5.1 Reflection History** ✅ shipped (monthly/quarterly browsing + completion overview)
 - **5.2 Release Hygiene & Safety** ✅ shipped (version stamp, export-first nudges, retry guidance)
 
 ### ⏳ Later
@@ -150,25 +150,25 @@ These items are foundational and help prevent regressions like data wipes/revert
 
 ## Phase 5: Post‑Phase‑4 Improvements (NEXT)
 
-### 5.1: Reflection History Browser (TOP PRIORITY)
+### 5.1: Reflection History Browser (COMPLETED)
 **Why prioritize**: Extracts maximum value from all the reflection data users are creating. Makes monthly/quarterly reviews actionable and reviewable over time.
 
 #### Features
-- **Monthly review history browser**:
+- **Monthly review history browser** ✅:
   - Timeline view showing all past monthly reviews for a life area
   - Filter by life area or view all
   - Search/filter by date range
   - Quick comparison: "What did I accomplish in Q1 vs Q2?"
-- **Quarterly review history browser**:
+- **Quarterly review history browser** ✅:
   - Same timeline approach for quarterly reviews
   - Highlight quarter transitions and goal progress
-- **Completion status overview**:
-  - Dashboard widget showing which reviews are done/missing across active areas
+- **Completion status overview** ✅:
+  - Overview showing which reviews are done/missing across active areas
   - Visual indicators for current month/quarter status
-  - Gentle nudge when reviews are overdue (without being intrusive)
+  - (Optional) gentle nudges handled by the existing due reminders
 
 #### Implementation Notes
-- Read-only view with option to "Edit current month/quarter"
+- Read-only view with option to "Edit current month/quarter" ✅
 - Export individual reviews or full history
 - Consider pagination for users with 2+ years of data
 
@@ -365,5 +365,5 @@ Based on architecture review (Jan 14, 2026), recommended implementation order:
 
 ---
 
-**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1 next.
+**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1–5.2 shipped. Next: Phase 5.5 or 5.4.
 **Last Updated**: January 14, 2026
