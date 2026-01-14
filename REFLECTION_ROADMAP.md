@@ -65,7 +65,17 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 - Quarterly variations (Q2: 25% goal check, Q3: 50% goal check) ✓
 - High-tech neon UI consistent with the rest of the app ✓
 
-## Phase 3: Enhanced Calendar View (FUTURE)
+## Phase 3: Dashboard & UX Enhancements (NEXT)
+
+### Features
+- **Dashboard Goal Entry**: Ability to set/edit the daily goal directly from the Dashboard card (currently read-only until set in Goals tab).
+- **Smart Progress Tracking**: Ensure reverting a completion accurately updates the progress history/calendar.
+- **Reminders & Notifications**:
+  - Monthly reflection reminder on the last day of the month.
+  - Quarterly reflection reminder on the last day of the quarter.
+  - Visual cues/badges when a review is due.
+
+## Phase 4: Enhanced Calendar View (FUTURE)
 
 ### Features
 - Monthly calendar layout in Progress tab
@@ -111,5 +121,5 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 
 ---
 
-**Status**: Phase 1 & 2 complete, Phase 3 next priority
+**Status**: Phase 1 & 2 complete, Phase 3 (UX Enhancements) next priority
 **Last Updated**: January 14, 2026
