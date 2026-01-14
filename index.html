@@ -1879,13 +1879,15 @@
                                     />
                                 )}
 
-                                {currentView === 'settings' && (
-                                    <Settings
-                                        exportData={exportData}
-                                        importData={importData}
-                                        user={null}
-                                    />
-                                )}
+	                                {currentView === 'settings' && (
+	                                    <Settings
+	                                        exportData={exportData}
+	                                        importData={importData}
+	                                        user={null}
+	                                        loadDemoData={loadDemoData}
+	                                        clearAllData={clearAllData}
+	                                    />
+	                                )}
                             </main>
                         </div>
                     </div>
