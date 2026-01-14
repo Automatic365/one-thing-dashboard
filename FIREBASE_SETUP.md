@@ -110,7 +110,7 @@ This ensures only you can access your own data - complete privacy!
 
 1. **Open the `index.html` file** in a text editor (TextEdit on Mac, Notepad on Windows)
 
-2. **Find lines 135-142** - they look like this:
+2. **Find `const FIREBASE_CONFIG`** in `index.html` - it looks like this:
 
 ```javascript
 const FIREBASE_CONFIG = {

@@ -156,6 +156,11 @@
             position: relative;
             overflow: hidden;
         }
+        
+        /* Some components (dropdowns/menus) need to escape the card bounds */
+        .glass.allow-overflow {
+            overflow: visible;
+        }
 
         /* HUD Corner Borders */
         .hud-card {
@@ -426,14 +431,24 @@
             appId: "1:574870247678:web:7f48eb160d11cd5444edaf"
         };
 
-        // Check if Firebase is configured
-        const isFirebaseConfigured = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
+        // Check if Firebase is configured and can run in this environment.
+        // Firebase Auth/Firestore require http(s) or localhost; file:// commonly breaks auth.
+        const isFirebaseConfigured = !!FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
+        const isFirebaseEnvSupported = typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:';
+        const isLocalhost =
+            typeof window !== 'undefined' &&
+            window.location &&
+            (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const search = typeof window !== 'undefined' && window.location ? window.location.search : '';
+        const forceCloudSync = search.includes('cloud=1');
+        const forceLocalOnly = search.includes('local=1') || (isLocalhost && !forceCloudSync);
+        const isFirebaseEnabled = isFirebaseConfigured && isFirebaseEnvSupported && !forceLocalOnly;
 
         // Initialize Firebase only if configured
         let db = null;
         let auth = null;
 
-        if (isFirebaseConfigured) {
+        if (isFirebaseEnabled) {
             try {
                 firebase.initializeApp(FIREBASE_CONFIG);
                 db = firebase.firestore();
@@ -602,13 +617,20 @@
             lastAnnualReview: null   // ISO date of last annual review
         });
 
-        // Migrate old data format to new multi-goal format
-        const migrateData = (oldData) => {
-            // REPAIR: Check for broken V7 data (V7 flag but V4/V6 structure)
-            // This happens if V1 fallback returned V7 state with V4 structure
-            if (oldData.version === 7) {
-                let needsRepair = false;
-                const activeAreas = Object.keys(oldData.lifeAreas || {});
+	        // Migrate old data format to new multi-goal format
+	        const migrateData = (oldData) => {
+	            if (!oldData || typeof oldData !== 'object') {
+	                return getInitialState();
+	            }
+	
+	            const parsedVersion = Number.parseInt(oldData.version, 10);
+	            const version = Number.isFinite(parsedVersion) ? parsedVersion : 1;
+	
+	            // REPAIR: Check for broken V7 data (V7 flag but V4/V6 structure)
+	            // This happens if V1 fallback returned V7 state with V4 structure
+	            if (version === 7) {
+	                let needsRepair = false;
+	                const activeAreas = Object.keys(oldData.lifeAreas || {});
                 
                 // Check if any area has 'daily' goal but no 'dailyHistory'
                 for (const key of activeAreas) {
@@ -655,13 +677,15 @@
                     return repairedState;
                 }
                 
-                return oldData;
-            }
-
-            // Version 6 → 7: Convert daily goal + completions to dailyHistory
-            if (oldData.version === 6) {
-                const newData = { ...oldData, version: 7 };
-                const today = new Date().toISOString().split('T')[0];
+	                // Normalize version type (Firestore can store it as a string).
+	                if (oldData.version !== 7) return { ...oldData, version: 7 };
+	                return oldData;
+	            }
+	
+	            // Version 6 → 7: Convert daily goal + completions to dailyHistory
+	            if (version === 6) {
+	                const newData = { ...oldData, version: 7 };
+	                const today = new Date().toISOString().split('T')[0];
 
                 Object.keys(newData.lifeAreas).forEach(areaKey => {
                     const area = newData.lifeAreas[areaKey];
@@ -695,16 +719,19 @@
                         });
                     }
 
-                    // Assign new structure
-                    area.goals.dailyHistory = dailyHistory;
-                });
-                return newData;
-            }
-
-            // Version 5 → 6: Add quarterly reviews array
-            if (oldData.version === 5) {
-                const v6Data = { ...oldData, version: 6 };
-                Object.keys(v6Data.lifeAreas).forEach(areaKey => {
+	                    // Assign new structure
+	                    area.goals.dailyHistory = dailyHistory;
+	
+	                    // Prevent double-counting: once migrated into dailyHistory, legacy completions are deprecated.
+	                    area.completions = [];
+	                });
+		                return newData;
+		            }
+	
+	            // Version 5 → 6: Add quarterly reviews array
+	            if (version === 5) {
+	                const v6Data = { ...oldData, version: 6 };
+	                Object.keys(v6Data.lifeAreas).forEach(areaKey => {
                     if (!v6Data.lifeAreas[areaKey].reviews) {
                         v6Data.lifeAreas[areaKey].reviews = { monthly: [], quarterly: [] };
                     } else if (!v6Data.lifeAreas[areaKey].reviews.quarterly) {
@@ -712,13 +739,13 @@
                     }
                 });
                 // Continue to v7
-                return migrateData(v6Data);
-            }
-
-            // Version 4 → 5: Convert to 5 goals per timeframe with selection
-            if (oldData.version === 4) {
-                const v5Data = { ...oldData, version: 5 };
-                Object.keys(v5Data.lifeAreas).forEach(areaKey => {
+	                return migrateData(v6Data);
+	            }
+	
+	            // Version 4 → 5: Convert to 5 goals per timeframe with selection
+	            if (version === 4) {
+	                const v5Data = { ...oldData, version: 5 };
+	                Object.keys(v5Data.lifeAreas).forEach(areaKey => {
                     const area = v5Data.lifeAreas[areaKey];
                     // SAFETY: Ensure goals object exists
                     if (!area.goals) {
@@ -748,11 +775,12 @@
                         { text: '', updatedAt: null }
                     ];
 
-                    // Convert weeklyGoals from 4 to 5 goals (add empty 5th slot)
-                    const weeklyGoals = [
-                        ...(goals.weeklyGoals || []),
-                        { text: '', updatedAt: null }
-                    ];
+	                    // Convert weeklyGoals to exactly 5 goals (pad/truncate; idempotent)
+	                    const weeklyGoals = Array.isArray(goals.weeklyGoals) ? [...goals.weeklyGoals] : [];
+	                    while (weeklyGoals.length < 5) {
+	                        weeklyGoals.push({ text: '', updatedAt: null });
+	                    }
+	                    if (weeklyGoals.length > 5) weeklyGoals.length = 5;
 
                     // Update goals structure
                     area.goals = {
@@ -791,21 +819,21 @@
                 return newGoals;
             };
 
-            // Version 3 → 5: Convert weekly goals to 4-1-1 then to 5-goal system
-            if (oldData.version === 3) {
-                const v4Data = { ...oldData, version: 4 };
-                Object.keys(v4Data.lifeAreas).forEach(areaKey => {
+	            // Version 3 → 5: Convert weekly goals to 4-1-1 then to 5-goal system
+	            if (version === 3) {
+	                const v4Data = { ...oldData, version: 4 };
+	                Object.keys(v4Data.lifeAreas).forEach(areaKey => {
                     v4Data.lifeAreas[areaKey].goals = convertWeeklyTo411(v4Data.lifeAreas[areaKey].goals);
                 });
                 // Now convert v4 to v5
                 return migrateData(v4Data);
             }
 
-            // Version 2 → 5: Add time blocking fields + convert to 4-1-1 then to 5-goal system
-            if (oldData.version === 2) {
-                const v4Data = {
-                    ...oldData,
-                    version: 4,
+	            // Version 2 → 5: Add time blocking fields + convert to 4-1-1 then to 5-goal system
+	            if (version === 2) {
+	                const v4Data = {
+	                    ...oldData,
+	                    version: 4,
                     lastWeeklyReview: null,
                     lastAnnualReview: null
                 };
@@ -816,9 +844,9 @@
                 return migrateData(v4Data);
             }
 
-            // Version 1 → 5: Full migration (single track to multi-track + 4-1-1 + 5-goal system)
-            // Note: getInitialState returns V7, but we are populating it with legacy V1/V4 data below.
-            const newState = getInitialState();
+	            // Version 1 → 5: Full migration (single track to multi-track + 4-1-1 + 5-goal system)
+	            // Note: getInitialState returns V7, but we are populating it with legacy V1/V4 data below.
+	            const newState = getInitialState();
 
             // If old data has goals, migrate them to "business" area
             if (oldData.goals) {
@@ -866,20 +894,253 @@
             return getInitialState();
         };
 
-        const saveToLocalStorage = (state) => {
-            localStorage.setItem('oneThingApp', JSON.stringify(state));
-        };
+	        const saveToLocalStorage = (state) => {
+	            localStorage.setItem('oneThingApp', JSON.stringify(state));
+	        };
+
+	        const shiftDateStr = (dateStr, deltaDays) => {
+	            const [y, m, d] = dateStr.split('-').map(Number);
+	            const date = new Date(Date.UTC(y, m - 1, d));
+	            date.setUTCDate(date.getUTCDate() + deltaDays);
+	            const newY = date.getUTCFullYear();
+	            const newM = String(date.getUTCMonth() + 1).padStart(2, '0');
+	            const newD = String(date.getUTCDate()).padStart(2, '0');
+	            return `${newY}-${newM}-${newD}`;
+	        };
+	
+	        const createDemoState = (todayStr) => {
+	            const demo = getInitialState();
+	
+	            const active = ['business', 'health', 'relationships'];
+	            Object.keys(demo.lifeAreas).forEach((key) => {
+	                demo.lifeAreas[key].active = active.includes(key);
+	            });
+	
+	            const setArea = (areaKey, payload) => {
+	                const area = demo.lifeAreas[areaKey];
+	                if (!area) return;
+	                area.goals = { ...area.goals, ...payload };
+	            };
+	
+	            setArea('business', {
+	                someday: { text: 'Build a product that helps people focus.', updatedAt: new Date().toISOString() },
+	                fiveYear: { text: 'Reach $20k MRR with a lean, joyful team.', updatedAt: new Date().toISOString() },
+	                annualGoals: [
+	                    { text: 'Ship v1 and retain 50 weekly users', updatedAt: new Date().toISOString() },
+	                    { text: 'Build a simple onboarding funnel', updatedAt: new Date().toISOString() },
+	                    { text: 'Publish 12 high-quality posts', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                annualOneThingIndex: 0,
+	                monthlyGoals: [
+	                    { text: 'Fix the top 10 UX paper cuts', updatedAt: new Date().toISOString() },
+	                    { text: 'Add demo data + guided tour', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                monthlyOneThingIndex: 0,
+	                weeklyGoals: [
+	                    { text: 'Deliver dashboard improvements', updatedAt: new Date().toISOString() },
+	                    { text: 'Reduce sync errors to zero', updatedAt: new Date().toISOString() },
+	                    { text: 'Draft 1 blog post', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                weeklyOneThingIndex: 0
+	            });
+	
+	            setArea('health', {
+	                someday: { text: 'Feel strong, energetic, and consistent.', updatedAt: new Date().toISOString() },
+	                fiveYear: { text: 'Run a comfortable half marathon.', updatedAt: new Date().toISOString() },
+	                annualGoals: [
+	                    { text: 'Train 3x/week consistently', updatedAt: new Date().toISOString() },
+	                    { text: 'Walk 8k steps/day average', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                annualOneThingIndex: 0,
+	                monthlyGoals: [
+	                    { text: 'Complete 12 workouts', updatedAt: new Date().toISOString() },
+	                    { text: 'Stretch 10 minutes daily', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                monthlyOneThingIndex: 0,
+	                weeklyGoals: [
+	                    { text: '3 workouts', updatedAt: new Date().toISOString() },
+	                    { text: '2 long walks', updatedAt: new Date().toISOString() },
+	                    { text: 'Meal prep on Sunday', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                weeklyOneThingIndex: 0
+	            });
+	
+	            setArea('relationships', {
+	                someday: { text: 'Be present and intentional with the people I love.', updatedAt: new Date().toISOString() },
+	                fiveYear: { text: 'Create rituals that deepen our relationships.', updatedAt: new Date().toISOString() },
+	                annualGoals: [
+	                    { text: 'Plan 12 memorable dates', updatedAt: new Date().toISOString() },
+	                    { text: 'Call family weekly', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                annualOneThingIndex: 0,
+	                monthlyGoals: [
+	                    { text: '1 meaningful date night', updatedAt: new Date().toISOString() },
+	                    { text: '2 family check-ins', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                monthlyOneThingIndex: 0,
+	                weeklyGoals: [
+	                    { text: 'Plan one small surprise', updatedAt: new Date().toISOString() },
+	                    { text: 'One long conversation (no phones)', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                weeklyOneThingIndex: 0
+	            });
+	
+	            active.forEach((areaKey, idx) => {
+	                const area = demo.lifeAreas[areaKey];
+	                if (!area) return;
+	                const dailyHistory = { ...(area.goals.dailyHistory || {}) };
+	                for (let i = 0; i < 14; i++) {
+	                    const date = shiftDateStr(todayStr, -i);
+	                    const completed = i % 3 !== idx % 3;
+	                    const text =
+	                        areaKey === 'business'
+	                            ? (i === 0 ? 'Ship the dashboard daily editor' : `Business focus #${i + 1}`)
+	                            : areaKey === 'health'
+	                                ? (i === 0 ? '30 minute workout' : `Health focus #${i + 1}`)
+	                                : (i === 0 ? 'Send a thoughtful message' : `Relationship focus #${i + 1}`);
+	                    dailyHistory[date] = {
+	                        text,
+	                        completed,
+	                        updatedAt: new Date().toISOString()
+	                    };
+	                }
+	                area.goals.dailyHistory = dailyHistory;
+	            });
+	
+	            demo.timeBlocks = [
+	                { id: Date.now(), date: todayStr, startTime: '09:00', endTime: '11:00', title: 'Deep Work: ONE Thing', lifeArea: 'business', completed: false },
+	                { id: Date.now() + 1, date: todayStr, startTime: '16:00', endTime: '17:00', title: 'Workout', lifeArea: 'health', completed: false }
+	            ];
+	
+	            demo.currentQuoteIndex = 0;
+	            return demo;
+	        };
+	
+	        const normalizeForCompare = (value) => {
+	            const seen = new WeakSet();
+	
+	            const normalize = (input) => {
+	                if (input === null || input === undefined) return input;
+	                const inputType = typeof input;
+	                if (inputType === 'string' || inputType === 'number' || inputType === 'boolean') return input;
+	
+	                if (input && typeof input.toMillis === 'function') return { __type: 'timestamp', ms: input.toMillis() };
+	                if (input instanceof Date) return { __type: 'date', iso: input.toISOString() };
+	
+	                if (Array.isArray(input)) return input.map(normalize);
+	
+	                if (inputType === 'object') {
+	                    if (seen.has(input)) return { __type: 'cycle' };
+	                    seen.add(input);
+	
+	                    const out = {};
+	                    Object.keys(input).sort().forEach((key) => {
+	                        out[key] = normalize(input[key]);
+	                    });
+	                    return out;
+	                }
+	
+	                return String(input);
+	            };
+	
+	            return normalize(value);
+	        };
+	
+	        const stableStringify = (value) => JSON.stringify(normalizeForCompare(value));
+	
+	        const firstDiffPath = (a, b) => {
+	            const aN = normalizeForCompare(a);
+	            const bN = normalizeForCompare(b);
+	
+	            const walk = (left, right, path) => {
+	                if (left === right) return null;
+	                if (left === null || right === null || left === undefined || right === undefined) return path;
+	
+	                const leftIsArray = Array.isArray(left);
+	                const rightIsArray = Array.isArray(right);
+	                if (leftIsArray !== rightIsArray) return path;
+	
+	                const leftType = typeof left;
+	                const rightType = typeof right;
+	                if (leftType !== rightType) return path;
+	
+	                if (leftType !== 'object') return path;
+	
+	                if (leftIsArray) {
+	                    if (left.length !== right.length) return `${path}.length`;
+	                    for (let i = 0; i < left.length; i++) {
+	                        const diff = walk(left[i], right[i], `${path}[${i}]`);
+	                        if (diff) return diff;
+	                    }
+	                    return null;
+	                }
+	
+	                const leftKeys = Object.keys(left);
+	                const rightKeys = Object.keys(right);
+	                if (leftKeys.length !== rightKeys.length) return `${path}.__keys`;
+	
+	                for (const key of leftKeys) {
+	                    if (!Object.prototype.hasOwnProperty.call(right, key)) return `${path}.${key}`;
+	                    const diff = walk(left[key], right[key], path ? `${path}.${key}` : key);
+	                    if (diff) return diff;
+	                }
+	                return null;
+	            };
+	
+	            return walk(aN, bN, '');
+	        };
+	
+	        const isBrokenV7Data = (data) => {
+	            if (!data || typeof data !== 'object') return false;
+	            const parsedVersion = Number.parseInt(data.version, 10);
+	            const version = Number.isFinite(parsedVersion) ? parsedVersion : null;
+	            if (version !== 7) return false;
+	            const areas = data.lifeAreas && typeof data.lifeAreas === 'object' ? Object.keys(data.lifeAreas) : [];
+	            for (const key of areas) {
+	                const goals = data.lifeAreas[key] && data.lifeAreas[key].goals;
+	                if (goals && goals.daily && !goals.dailyHistory) return true;
+	            }
+	            return false;
+	        };
 
         // ==========================================
         // MAIN APP COMPONENT
         // ==========================================
-        function App() {
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [state, setState] = useState(getInitialState);
-            const [currentView, setCurrentView] = useState('dashboard');
-            const [syncing, setSyncing] = useState(false);
-            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
+	        function App() {
+	            const [user, setUser] = useState(null);
+	            const [loading, setLoading] = useState(true);
+	            const [state, setState] = useState(getInitialState);
+	            const [currentView, setCurrentView] = useState('dashboard');
+	            const [syncing, setSyncing] = useState(false);
+	            const [syncError, setSyncError] = useState(null);
+	            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
+	            const lastMigrationWriteRef = React.useRef(null);
+	            const migrationWriteAttemptsRef = React.useRef(0);
+	            const attemptedVersionFixRef = React.useRef(false);
 
             // Helper to get local date string YYYY-MM-DD
             const getLocalDateString = () => {
@@ -890,7 +1151,7 @@
 
             // Auth state listener
             useEffect(() => {
-                if (!isFirebaseConfigured || !auth) {
+                if (!isFirebaseEnabled || !auth) {
                     setLoading(false);
                     setState(loadFromLocalStorage());
                     return;
@@ -908,7 +1169,7 @@
             useEffect(() => {
                 if (!user || !db) {
                     // Use localStorage when offline or not authenticated
-                    if (!isFirebaseConfigured) {
+                    if (!isFirebaseEnabled) {
                         setState(loadFromLocalStorage());
                     }
                     return;
@@ -917,57 +1178,123 @@
                 setSyncing(true);
                 const docRef = db.collection('users').doc(user.uid);
 
-                const unsubscribe = docRef.onSnapshot((doc) => {
-                    if (doc.exists) {
-                        const originalData = doc.data();
-                        const data = migrateData(originalData);
-                        setState(data);
-                        
-                        // Check if migration or repair happened
-                        const versionChanged = data.version !== originalData.version;
-                        
-                        // Check if structural repair happened (V7 broken -> V7 fixed)
-                        // Simple check: original didn't have dailyHistory, new one does
-                        let structuralRepair = false;
-                        if (data.version === 7 && originalData.version === 7) {
-                            const sampleKey = Object.keys(data.lifeAreas)[0];
-                            if (sampleKey && !originalData.lifeAreas[sampleKey]?.goals?.dailyHistory && data.lifeAreas[sampleKey]?.goals?.dailyHistory) {
-                                structuralRepair = true;
-                            }
-                        }
+	                const unsubscribe = docRef.onSnapshot((doc) => {
+	                    if (doc.exists) {
+	                        const originalData = doc.data();
+	                        const brokenV7 = isBrokenV7Data(originalData);
+	                        const originalStr = stableStringify(originalData);
+	                        const data = migrateData(originalData);
+	                        setState(data);
 
-                        if (versionChanged || structuralRepair) {
-                            console.log("Saving migrated/repaired data...");
-                            docRef.set(data).catch(err => {
-                                console.error("Error saving migrated data:", err);
-                            });
-                        }
-                    } else {
-                        // First time user - migrate from localStorage
-                        const localData = loadFromLocalStorage();
-                        docRef.set(localData).then(() => {
-                            setState(localData);
-                        });
-                    }
-                    setSyncing(false);
-                }, (error) => {
-                    console.error("Firestore sync error:", error);
-                    setSyncing(false);
-                });
+	                        const dataStr = stableStringify(data);
+	                        const originalNoVersionStr = stableStringify(
+	                            (originalData && typeof originalData === 'object') ? { ...originalData, version: 0 } : originalData
+	                        );
+	                        const dataNoVersionStr = stableStringify({ ...data, version: 0 });
+	                        const onlyVersionDiffers = originalNoVersionStr === dataNoVersionStr;
+	                        const shouldPersistMigration =
+	                            !doc.metadata.hasPendingWrites &&
+	                            originalStr !== dataStr;
+
+	                        if (!shouldPersistMigration) {
+	                            migrationWriteAttemptsRef.current = 0;
+	                        }
+
+	                        if (shouldPersistMigration) {
+	                            migrationWriteAttemptsRef.current += 1;
+	                            if (migrationWriteAttemptsRef.current > 10) {
+	                                console.warn(
+	                                    "Migration writeback disabled to prevent an infinite loop. " +
+	                                    "If you see this, please export your data and share the console logs."
+	                                );
+	                                setSyncing(false);
+	                                return;
+	                            }
+
+	                            if (lastMigrationWriteRef.current !== dataStr) {
+	                                lastMigrationWriteRef.current = dataStr;
+	                                const diff = firstDiffPath(originalData, data);
+	                                if (diff) console.log("Migration diff at:", diff);
+	                                console.log("Saving migrated/repaired data...");
+	                                if (onlyVersionDiffers) {
+	                                    if (!attemptedVersionFixRef.current) {
+	                                        attemptedVersionFixRef.current = true;
+	                                        docRef.set({ version: data.version }, { merge: true }).catch(err => {
+	                                            console.error("Error saving migrated version:", err);
+	                                            setSyncError(err && err.message ? err.message : String(err));
+	                                        });
+	                                    } else {
+	                                        // Don’t keep writing forever if some other client keeps storing version as a string.
+	                                        // We can still run the app using the migrated in-memory state.
+	                                    }
+	                                } else {
+	                                    // For broken v7 documents, do a full replace so the repaired structure actually persists.
+	                                    const writePromise = brokenV7 ? docRef.set(data) : docRef.set(data, { merge: true });
+	                                    writePromise.catch(err => {
+	                                        console.error("Error saving migrated data:", err);
+	                                        setSyncError(err && err.message ? err.message : String(err));
+	                                    });
+	                                }
+	                            }
+	                        }
+	                    } else {
+	                        // First time user - migrate from localStorage
+	                        const localData = loadFromLocalStorage();
+	                        docRef.set(localData).then(() => {
+	                            setState(localData);
+	                        });
+	                    }
+	                    setSyncing(false);
+	                }, (error) => {
+	                    console.error("Firestore sync error:", error);
+	                    setSyncing(false);
+	                });
 
                 return () => unsubscribe();
             }, [user]);
 
             // Save to Firestore or localStorage
-            const saveState = useCallback((newState) => {
-                setState(newState);
+	            const saveState = useCallback((newState) => {
+	                setState(newState);
 
-                if (user && db) {
-                    db.collection('users').doc(user.uid).set(newState);
-                } else {
-                    saveToLocalStorage(newState);
-                }
-            }, [user]);
+	                if (user && db) {
+	                    db.collection('users').doc(user.uid).set(newState, { merge: true }).catch((err) => {
+	                        console.error("Error saving state:", err);
+	                        setSyncError(err && err.message ? err.message : String(err));
+	                    });
+	                } else {
+	                    saveToLocalStorage(newState);
+	                }
+	            }, [user]);
+	
+	            const clearAllData = () => {
+	                const message = user
+	                    ? 'This will overwrite your cloud-synced data with an empty state. Type CLEAR to confirm:'
+	                    : 'This will clear your local data and reset the app. Continue?';
+	                if (user) {
+	                    const typed = window.prompt(message);
+	                    if (typed !== 'CLEAR') return;
+	                } else if (!window.confirm(message)) {
+	                    return;
+	                }
+	                saveState(getInitialState());
+	            };
+	
+	            const loadDemoData = () => {
+	                const message = user
+	                    ? 'This will overwrite your cloud-synced data with DEMO data. Type DEMO to confirm:'
+	                    : 'This will replace your current data with DEMO data. Continue?';
+	                if (user) {
+	                    const typed = window.prompt(message);
+	                    if (typed !== 'DEMO') return;
+	                } else if (!window.confirm(message)) {
+	                    return;
+	                }
+	
+	                const todayStr = getLocalDateString();
+	                const demo = createDemoState(todayStr);
+	                saveState(demo);
+	            };
 
             // Toggle life area active state
             const toggleLifeArea = (areaKey) => {
@@ -1175,14 +1502,23 @@
                 saveState(newState);
             };
 
-            const completeDaily = (areaKey, date = null) => {
+            const completeDaily = (areaKey, date = null, textOverride = null) => {
                 const targetDate = date || getLocalDateString();
                 const area = state.lifeAreas[areaKey];
-                const entry = area.goals.dailyHistory?.[targetDate];
+                const dailyHistory = (area.goals && area.goals.dailyHistory) ? area.goals.dailyHistory : {};
+                const existingEntry = dailyHistory[targetDate] || { text: '', completed: false, updatedAt: null };
+                const nextText = (textOverride !== null && textOverride !== undefined) ? String(textOverride) : existingEntry.text;
 
-                if (!entry || !entry.text) return; // Can't complete empty goal
+                if (!nextText || !nextText.trim()) return; // Can't complete empty goal
 
-                const newCompletedStatus = !entry.completed;
+                const newCompletedStatus = !existingEntry.completed;
+
+                const nextEntry = {
+                    ...existingEntry,
+                    text: nextText,
+                    updatedAt: (textOverride !== null && textOverride !== undefined) ? new Date().toISOString() : existingEntry.updatedAt,
+                    completed: newCompletedStatus
+                };
 
                 const newState = {
                     ...state,
@@ -1193,11 +1529,8 @@
                             goals: {
                                 ...area.goals,
                                 dailyHistory: {
-                                    ...area.goals.dailyHistory,
-                                    [targetDate]: {
-                                        ...entry,
-                                        completed: newCompletedStatus
-                                    }
+                                    ...dailyHistory,
+                                    [targetDate]: nextEntry
                                 }
                             }
                         }
@@ -1365,12 +1698,14 @@
 
             const today = new Date().toISOString().split('T')[0];
 
-            // Get active life areas
-            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
+	            // Get active life areas
+	            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
+	
+	            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
 
-            if (loading) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center">
+	            if (loading) {
+	                return (
+	                    <div className="min-h-screen flex items-center justify-center">
                         <div className="text-center">
                             <div className="spinner inline-block w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full shadow-glow"></div>
                             <p className="mt-4 text-slate-400 font-medium">Loading your legacy...</p>
@@ -1379,25 +1714,32 @@
                 );
             }
 
-            if (!user && isFirebaseConfigured && auth) {
+            if (!user && isFirebaseEnabled && auth) {
                 return <AuthScreen />;
             }
 
-            if (!isFirebaseConfigured) {
-                return (
-                    <div className="min-h-screen bg-slate-900 text-slate-50">
-                        <div className="max-w-4xl mx-auto px-4 py-16">
-                            <div className="glass border border-yellow-500/30 rounded-xl p-8 mb-8 relative overflow-hidden">
+	            if (!isFirebaseEnabled) {
+	                return (
+	                    <div className="min-h-screen bg-slate-900 text-slate-50">
+	                        <div className="max-w-4xl mx-auto px-4 py-16">
+	                            <div className="glass border border-yellow-500/30 rounded-xl p-8 mb-8 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10">
                                     <span className="text-9xl">⚠️</span>
                                 </div>
-                                <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center">
-                                    <span className="mr-3 text-3xl">⚠️</span> Firebase Not Configured
-                                </h2>
-                                <p className="text-slate-300 mb-4 leading-relaxed">
-                                    Your app is currently using <strong className="text-white">localStorage</strong> (local-only storage).
-                                    To sync across devices, you need to set up Firebase.
-                                </p>
+	                                <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center">
+	                                    <span className="mr-3 text-3xl">⚠️</span>
+	                                    {isFirebaseConfigured
+	                                        ? (forceLocalOnly && isLocalhost ? 'Cloud Sync Disabled (local test mode)' : 'Firebase Disabled (file://)')
+	                                        : 'Firebase Not Configured'}
+	                                </h2>
+	                                <p className="text-slate-300 mb-4 leading-relaxed">
+	                                    Your app is currently using <strong className="text-white">localStorage</strong> (local-only storage).
+	                                    {isFirebaseConfigured
+	                                        ? (forceLocalOnly && isLocalhost
+	                                            ? ' Cloud sync is intentionally disabled on localhost to prevent accidental overwrites. Add ?cloud=1 to enable it.'
+	                                            : ' To use Firebase sync, run this app from http://localhost (or deploy it) instead of opening the file directly.')
+	                                        : ' To sync across devices, you need to set up Firebase.'}
+	                                </p>
                                 <p className="text-slate-300 mb-6 leading-relaxed">
                                     <strong>Don't worry!</strong> Your app still works perfectly on this device.
                                 </p>
@@ -1487,12 +1829,55 @@
                 );
             }
 
-            return (
-                <div className="min-h-screen">
-                    <Navigation
-                        currentView={currentView}
-                        setCurrentView={setCurrentView}
-                        user={user}
+	            return (
+	                <div className="min-h-screen">
+	                    {isLocalhost && forceLocalOnly && isFirebaseConfigured && (
+	                        <div className="max-w-7xl mx-auto px-4 pt-4">
+	                            <div className="glass border border-yellow-500/30 rounded-xl p-4 flex items-start justify-between gap-4">
+	                                <div>
+	                                    <div className="font-bold text-yellow-300">Local test mode</div>
+	                                    <div className="text-sm text-slate-200/80 mt-1">
+	                                        Cloud sync is disabled on localhost to prevent accidental overwrites. Add <span className="font-mono">?cloud=1</span> to enable it.
+	                                    </div>
+	                                </div>
+	                                <a
+	                                    href={`${window.location.pathname}?cloud=1`}
+	                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-200 border border-slate-700"
+	                                >
+	                                    Enable Cloud Sync
+	                                </a>
+	                            </div>
+	                        </div>
+	                    )}
+	                    {syncError && (
+	                        <div className="max-w-7xl mx-auto px-4 pt-4">
+	                            <div className="glass border border-red-500/40 rounded-xl p-4 flex items-start justify-between gap-4">
+	                                <div>
+	                                    <div className="font-bold text-red-300">Cloud sync error</div>
+	                                    <div className="text-sm text-slate-200/80 font-mono mt-1 break-all">{syncError}</div>
+	                                </div>
+	                                <button
+	                                    onClick={() => setSyncError(null)}
+	                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm"
+	                                >
+	                                    Dismiss
+	                                </button>
+	                            </div>
+	                        </div>
+	                    )}
+	
+	                    {showDebug && (
+	                        <div className="fixed bottom-4 right-4 z-50 max-w-sm glass border border-slate-700/60 rounded-xl p-3 text-xs font-mono text-slate-200">
+	                            <div><span className="text-slate-400">syncing:</span> {String(syncing)}</div>
+	                            <div><span className="text-slate-400">uid:</span> {user ? user.uid : 'null'}</div>
+	                            <div><span className="text-slate-400">activeAreas:</span> {activeAreas.join(', ') || '(none)'}</div>
+	                        </div>
+	                    )}
+	
+	                    <Navigation
+	                        currentView={currentView}
+	                        setCurrentView={setCurrentView}
+	                        user={user}
                         handleLogout={handleLogout}
                         syncing={syncing}
                     />
@@ -1559,13 +1944,15 @@
                             />
                         )}
 
-                        {currentView === 'settings' && (
-                            <Settings
-                                exportData={exportData}
-                                importData={importData}
-                                user={user}
-                            />
-                        )}
+	                        {currentView === 'settings' && (
+	                            <Settings
+	                                exportData={exportData}
+	                                importData={importData}
+	                                user={user}
+	                                loadDemoData={loadDemoData}
+	                                clearAllData={clearAllData}
+	                            />
+	                        )}
                     </main>
                 </div>
             );
@@ -2277,10 +2664,148 @@
             );
         }
 
-        // ==========================================
-        // DASHBOARD
-        // ==========================================
-        function Dashboard({ lifeAreas, activeAreas, updateGoal, completeDaily, quote, rotateQuote, toggleLifeArea }) {
+	        // ==========================================
+	        // DASHBOARD
+	        // ==========================================
+	        function DailyOneThingEditor({ areaKey, dateStr, isToday, dailyEntry, updateGoal, completeDaily }) {
+	            const [draft, setDraft] = React.useState(dailyEntry.text || '');
+	            const [editing, setEditing] = React.useState(!dailyEntry.completed);
+	            const [saved, setSaved] = React.useState(false);
+	            const [isDirty, setIsDirty] = React.useState(false);
+	            const isFocusedRef = React.useRef(false);
+	            const lastKeyRef = React.useRef(`${areaKey}:${dateStr}`);
+	
+	            React.useEffect(() => {
+	                const key = `${areaKey}:${dateStr}`;
+	                const keyChanged = lastKeyRef.current !== key;
+	                if (keyChanged) {
+	                    lastKeyRef.current = key;
+	                    setDraft(dailyEntry.text || '');
+	                    setEditing(!dailyEntry.completed);
+	                    setIsDirty(false);
+	                    return;
+	                }
+	
+	                // If Firestore snapshot updates come in while the user is typing, don’t clobber their draft.
+	                if (isFocusedRef.current || isDirty) return;
+	                setDraft(dailyEntry.text || '');
+	                setEditing(!dailyEntry.completed);
+	            }, [areaKey, dateStr, dailyEntry.completed, dailyEntry.text, isDirty]);
+	
+	            const saveDraft = () => {
+	                updateGoal(areaKey, 'daily', draft, dateStr);
+	                setSaved(true);
+	                setIsDirty(false);
+	                setTimeout(() => setSaved(false), 1200);
+	            };
+	
+	            if (dailyEntry.completed && !editing) {
+	                return (
+	                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
+	                        <div className="flex items-center justify-between gap-4">
+	                            <div className="flex items-center gap-4">
+	                                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+	                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+	                                </div>
+	                                <div>
+	                                    <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
+	                                        {dailyEntry.text}
+	                                    </p>
+	                                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
+	                                </div>
+	                            </div>
+	                            <div className="flex items-center gap-2">
+	                                <button
+	                                    onClick={() => setEditing(true)}
+	                                    className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50"
+	                                    title="Edit goal text"
+	                                >
+	                                    Edit
+	                                </button>
+	                                <button
+	                                    onClick={() => completeDaily(areaKey, dateStr)}
+	                                    className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50 hover:border-red-500/30"
+	                                    title="Undo completion"
+	                                >
+	                                    Undo
+	                                </button>
+	                            </div>
+	                        </div>
+	                    </div>
+	                );
+	            }
+	
+	            return (
+	                <div className="space-y-3">
+	                    <textarea
+	                        value={draft}
+	                        onFocus={() => {
+	                            isFocusedRef.current = true;
+	                        }}
+	                        onChange={(e) => {
+	                            setDraft(e.target.value);
+	                            setIsDirty(true);
+	                        }}
+	                        onBlur={() => {
+	                            isFocusedRef.current = false;
+	                            if (!dailyEntry.completed) saveDraft();
+	                        }}
+	                        placeholder={`What is your ONE Thing for ${isToday ? 'today' : 'this day'}?`}
+	                        className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg leading-relaxed resize-none shadow-inner"
+	                        rows="2"
+	                    />
+	
+	                    <div className="flex gap-3">
+	                        <button
+	                            type="button"
+	                            onClick={() => {
+	                                saveDraft();
+	                                if (dailyEntry.completed) setEditing(false);
+	                            }}
+	                            className={`flex-1 py-3 px-4 border border-transparent text-sm font-bold rounded-xl transition-all duration-200 ${
+	                                'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600'
+	                            }`}
+	                        >
+	                            {saved ? 'Saved' : 'Save'}
+	                        </button>
+	                        {!dailyEntry.completed && (
+	                            <button
+	                                onClick={() => completeDaily(areaKey, dateStr, draft)}
+	                                disabled={!draft || !draft.trim()}
+	                                className={`flex-[2] group relative flex items-center justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white transition-all duration-200 ${
+	                                    draft && draft.trim()
+	                                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5'
+	                                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+	                                }`}
+	                            >
+	                                <span className="mr-2">Complete Task</span>
+	                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+	                            </button>
+	                        )}
+	                        {dailyEntry.completed && (
+	                            <button
+	                                onClick={() => completeDaily(areaKey, dateStr)}
+	                                className="flex-[2] py-3 px-4 bg-slate-800/60 hover:bg-slate-800 text-slate-200 rounded-xl border border-slate-700/50 hover:border-red-500/30 hover:text-red-200 transition-all"
+	                                title="Undo completion"
+	                            >
+	                                Undo Completion
+	                            </button>
+	                        )}
+	                        {dailyEntry.completed && (
+	                            <button
+	                                type="button"
+	                                onClick={() => setEditing(false)}
+	                                className="py-3 px-4 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-700/50"
+	                            >
+	                                Cancel
+	                            </button>
+	                        )}
+	                    </div>
+	                </div>
+	            );
+	        }
+	
+	        function Dashboard({ lifeAreas, activeAreas, updateGoal, completeDaily, quote, rotateQuote, toggleLifeArea }) {
             // Helper to get local date string YYYY-MM-DD
             const getLocalDateString = (dateObj = new Date()) => {
                 const d = new Date(dateObj);
@@ -2476,56 +3001,17 @@
                                                     </span>
                                                 </div>
 
-                                                {isCompleted ? (
-                                                    <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 group-hover:border-emerald-500/30 transition-colors group/completed">
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
-                                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-lg font-medium text-emerald-100 line-through opacity-50">
-                                                                        {dailyEntry.text}
-                                                                    </p>
-                                                                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mt-1">Completed</p>
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => completeDaily(areaKey, selectedDate)}
-                                                                className="opacity-0 group-hover/completed:opacity-100 transition-opacity px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-400 bg-slate-800/50 hover:bg-slate-800 rounded-lg border border-slate-700/50 hover:border-red-500/30"
-                                                                title="Undo completion"
-                                                            >
-                                                                Undo
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-4">
-                                                        <textarea
-                                                            value={dailyEntry.text}
-                                                            onChange={(e) => updateGoal(areaKey, 'daily', e.target.value, selectedDate)}
-                                                            placeholder={`What is your ONE Thing for ${isToday ? 'today' : 'this day'}?`}
-                                                            className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg leading-relaxed resize-none shadow-inner"
-                                                            rows="2"
-                                                        />
-
-                                                        <button
-                                                            onClick={() => completeDaily(areaKey, selectedDate)}
-                                                            disabled={!dailyEntry.text}
-                                                            className={`w-full group relative flex items-center justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white transition-all duration-200 ${
-                                                                dailyEntry.text 
-                                                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5' 
-                                                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                                            }`}
-                                                        >
-                                                            <span className="mr-2">Complete Task</span>
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+	                                                <DailyOneThingEditor
+	                                                    areaKey={areaKey}
+	                                                    dateStr={selectedDate}
+	                                                    isToday={isToday}
+	                                                    dailyEntry={dailyEntry}
+	                                                    updateGoal={updateGoal}
+	                                                    completeDaily={completeDaily}
+	                                                />
+	                                            </div>
+	                                        </div>
+	                                    </div>
                                 );
                             })}
                         </div>
@@ -2627,10 +3113,28 @@
         // ==========================================
         // GOAL HIERARCHY
         // ==========================================
-        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateAnnualGoal, setAnnualOneThing, updateMonthlyGoal, setMonthlyOneThing, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
-            const levels = [
-                {
-                    key: 'someday',
+	        function GoalHierarchy({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, updateGoal, updateAnnualGoal, setAnnualOneThing, updateMonthlyGoal, setMonthlyOneThing, updateWeeklyGoal, setWeeklyOneThing, toggleLifeArea }) {
+	            const [addAreaMenuOpen, setAddAreaMenuOpen] = React.useState(false);
+	            const [addAreaMenuRect, setAddAreaMenuRect] = React.useState(null);
+	
+	            const openAddAreaMenu = (e) => {
+	                const rect = e.currentTarget.getBoundingClientRect();
+	                setAddAreaMenuRect(rect);
+	                setAddAreaMenuOpen(true);
+	            };
+	
+	            React.useEffect(() => {
+	                if (!addAreaMenuOpen) return;
+	                const onKeyDown = (evt) => {
+	                    if (evt.key === 'Escape') setAddAreaMenuOpen(false);
+	                };
+	                window.addEventListener('keydown', onKeyDown);
+	                return () => window.removeEventListener('keydown', onKeyDown);
+	            }, [addAreaMenuOpen]);
+	
+	            const levels = [
+	                {
+	                    key: 'someday',
                     label: 'Someday Goal',
                     question: 'What\'s the ONE Thing I want to do someday?',
                     description: 'Your ultimate vision - the big dream that inspires everything else',
@@ -2697,51 +3201,96 @@
             return (
                 <div className="space-y-8 fade-in">
                     {/* Life Area Selector */}
-                    <div className="glass rounded-xl p-6 border border-slate-700/50">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 ml-1">Select Life Area</h3>
-                        <div className="flex flex-wrap gap-3">
-                            {activeAreas.map(areaKey => (
-                                <button
-                                    key={areaKey}
-                                    onClick={() => setSelectedLifeArea(areaKey)}
-                                    className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-200 border flex items-center ${selectedLifeArea === areaKey
-                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/30'
-                                        : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 hover:border-slate-600'
-                                        }`}
-                                >
-                                    <span className="mr-2">{LIFE_AREAS[areaKey].icon}</span>
-                                    {LIFE_AREAS[areaKey].name}
-                                </button>
-                            ))}
-                            {activeAreas.length < Object.keys(LIFE_AREAS).length && (
-                                <details className="relative inline-block group">
-                                    <summary className="px-5 py-2.5 rounded-xl border border-dashed border-slate-600 text-slate-500 hover:border-indigo-500 hover:text-indigo-400 cursor-pointer list-none transition-colors">
-                                        + Add Area
-                                    </summary>
-                                    <div className="absolute z-20 mt-3 p-2 bg-slate-800 rounded-xl shadow-xl border border-slate-700 min-w-[220px] backdrop-blur-xl animate-float">
-                                        {Object.keys(LIFE_AREAS)
-                                            .filter(k => !activeAreas.includes(k))
-                                            .map(areaKey => (
-                                                <button
-                                                    key={areaKey}
-                                                    onClick={(e) => {
-                                                        toggleLifeArea(areaKey);
-                                                        setSelectedLifeArea(areaKey);
-                                                        // Close the dropdown by finding parent details element
-                                                        const details = e.target.closest('details');
-                                                        if (details) details.open = false;
-                                                    }}
-                                                    className="w-full px-4 py-3 text-left hover:bg-slate-700 rounded-lg flex items-center text-slate-300 hover:text-white transition-colors"
-                                                >
-                                                    <span className="mr-3 text-lg">{LIFE_AREAS[areaKey].icon}</span>
-                                                    {LIFE_AREAS[areaKey].name}
-                                                </button>
-                                            ))}
-                                    </div>
-                                </details>
-                            )}
-                        </div>
-                    </div>
+	                    <div className="glass allow-overflow rounded-xl p-6 border border-slate-700/50">
+	                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 ml-1">Select Life Area</h3>
+	                        <div className="flex flex-wrap gap-3">
+	                            {activeAreas.map(areaKey => (
+	                                <div key={areaKey} className="relative inline-block">
+	                                    <button
+	                                        onClick={() => setSelectedLifeArea(areaKey)}
+	                                        className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-200 border flex items-center ${selectedLifeArea === areaKey
+	                                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+	                                            : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 hover:border-slate-600'
+	                                            }`}
+	                                    >
+	                                        <span className="mr-2">{LIFE_AREAS[areaKey].icon}</span>
+	                                        {LIFE_AREAS[areaKey].name}
+	                                    </button>
+	
+	                                    <button
+	                                        type="button"
+	                                        onClick={(e) => {
+	                                            e.preventDefault();
+	                                            e.stopPropagation();
+	                                            if (activeAreas.length <= 1) return;
+	                                            const nextActiveAreas = activeAreas.filter(k => k !== areaKey);
+	                                            if (selectedLifeArea === areaKey && nextActiveAreas.length > 0) {
+	                                                setSelectedLifeArea(nextActiveAreas[0]);
+	                                            }
+	                                            toggleLifeArea(areaKey);
+	                                        }}
+	                                        disabled={activeAreas.length <= 1}
+	                                        title={activeAreas.length <= 1 ? 'At least one life area must remain active' : 'Remove life area'}
+	                                        className={`absolute -top-2 -right-2 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold transition-all ${
+	                                            activeAreas.length <= 1
+	                                                ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed opacity-50'
+	                                                : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-200'
+	                                        }`}
+	                                    >
+	                                        ×
+	                                    </button>
+	                                </div>
+	                            ))}
+	                            {activeAreas.length < Object.keys(LIFE_AREAS).length && (
+	                                <>
+	                                    <button
+	                                        type="button"
+	                                        onClick={openAddAreaMenu}
+	                                        className="px-5 py-2.5 rounded-xl border border-dashed border-slate-600 text-slate-500 hover:border-indigo-500 hover:text-indigo-400 cursor-pointer list-none transition-colors"
+	                                    >
+	                                        + Add Area
+	                                    </button>
+	
+	                                    {addAreaMenuOpen && addAreaMenuRect && ReactDOM.createPortal(
+	                                        <div
+	                                            className="fixed inset-0 z-[9999]"
+	                                            onClick={() => setAddAreaMenuOpen(false)}
+	                                        >
+	                                            <div
+	                                                className="fixed z-[10000] p-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 min-w-[220px] backdrop-blur-xl"
+	                                                style={{
+	                                                    top: Math.min(addAreaMenuRect.bottom + 8, window.innerHeight - 280),
+	                                                    left: Math.min(addAreaMenuRect.left, window.innerWidth - 260)
+	                                                }}
+	                                                onClick={(evt) => {
+	                                                    evt.preventDefault();
+	                                                    evt.stopPropagation();
+	                                                }}
+	                                            >
+	                                                {Object.keys(LIFE_AREAS)
+	                                                    .filter(k => !activeAreas.includes(k))
+	                                                    .map(areaKey => (
+	                                                        <button
+	                                                            key={areaKey}
+	                                                            onClick={() => {
+	                                                                toggleLifeArea(areaKey);
+	                                                                setSelectedLifeArea(areaKey);
+	                                                                setAddAreaMenuOpen(false);
+	                                                            }}
+	                                                            className="w-full px-4 py-3 text-left hover:bg-slate-700 rounded-lg flex items-center text-slate-300 hover:text-white transition-colors"
+	                                                        >
+	                                                            <span className="mr-3 text-lg">{LIFE_AREAS[areaKey].icon}</span>
+	                                                            {LIFE_AREAS[areaKey].name}
+	                                                        </button>
+	                                                    ))}
+	                                            </div>
+	                                        </div>,
+	                                        document.body
+	                                    )}
+	                                </>
+	                            )}
+	                        </div>
+	                    </div>
 
                     <div className="text-center mb-10">
                         <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/10 mb-4 backdrop-blur-sm">
@@ -3294,16 +3843,37 @@
 
             // Aggregate completions from all active life areas
             const allCompletions = [];
-            Object.keys(lifeAreas).forEach(areaKey => {
-                if (lifeAreas[areaKey].active) {
-                    lifeAreas[areaKey].completions.forEach(comp => {
-                        allCompletions.push({
-                            ...comp,
-                            lifeArea: areaKey
-                        });
-                    });
-                }
-            });
+	            Object.keys(lifeAreas).forEach(areaKey => {
+	                if (lifeAreas[areaKey].active) {
+	                    const area = lifeAreas[areaKey];
+	                    
+	                    // v7 source of truth: dailyHistory
+	                    const dailyHistory = area.goals && area.goals.dailyHistory ? area.goals.dailyHistory : {};
+	                    const completedDatesFromHistory = new Set();
+	                    Object.keys(dailyHistory).forEach(date => {
+	                        const entry = dailyHistory[date];
+	                        if (entry && entry.completed) {
+	                            completedDatesFromHistory.add(date);
+	                            allCompletions.push({
+	                                date,
+	                                goal: entry.text || 'Completed Task',
+	                                lifeArea: areaKey
+	                            });
+	                        }
+	                    });
+	                    
+	                    // legacy fallback: completions array (kept for older migrated data)
+	                    if (Array.isArray(area.completions)) {
+	                        area.completions.forEach(comp => {
+	                            if (comp && comp.date && completedDatesFromHistory.has(comp.date)) return;
+	                            allCompletions.push({
+	                                ...comp,
+	                                lifeArea: areaKey
+	                            });
+	                        });
+	                    }
+	                }
+	            });
 
             // Use local date for 'today'
             const todayStr = getLocalDateString();
@@ -3461,7 +4031,7 @@
         // ==========================================
         // SETTINGS
         // ==========================================
-        function Settings({ exportData, importData, user }) {
+        function Settings({ exportData, importData, user, loadDemoData, clearAllData }) {
             const handleImport = (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -3537,6 +4107,36 @@
                             </div>
                         </div>
                     </div>
+	
+	                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
+	                        <div className="flex items-center justify-between gap-4 flex-wrap">
+	                            <div className="text-left">
+	                                <h3 className="text-xl font-bold text-white">Demo / Reset</h3>
+	                                <p className="text-slate-400 text-sm mt-2 max-w-2xl">
+	                                    Load realistic demo data to quickly test flows, or clear all data to start fresh.
+	                                </p>
+	                                {user && (
+	                                    <p className="text-yellow-300/80 text-xs mt-2 font-mono">
+	                                        Cloud sync is enabled — these actions can overwrite your cloud data.
+	                                    </p>
+	                                )}
+	                            </div>
+	                            <div className="flex gap-3">
+	                                <button
+	                                    onClick={loadDemoData}
+	                                    className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 font-bold transition-all"
+	                                >
+	                                    Load Demo Data
+	                                </button>
+	                                <button
+	                                    onClick={clearAllData}
+	                                    className="px-5 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-200 border border-red-500/30 hover:border-red-500/50 font-bold transition-all"
+	                                >
+	                                    Clear All Data
+	                                </button>
+	                            </div>
+	                        </div>
+	                    </div>
 
                     <div className="glass rounded-2xl p-8 border border-slate-700/50 text-center">
                         <h3 className="text-xl font-bold text-white mb-4">About</h3>
