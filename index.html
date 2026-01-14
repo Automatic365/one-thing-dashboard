@@ -604,8 +604,39 @@
 
         // Migrate old data format to new multi-goal format
         const migrateData = (oldData) => {
-            // If already version 7, no migration needed
-            if (oldData.version === 7) return oldData;
+            // REPAIR: Check for broken V7 data (V7 flag but V4/V6 structure)
+            // This happens if V1 fallback returned V7 state with V4 structure
+            if (oldData.version === 7) {
+                let needsRepair = false;
+                const activeAreas = Object.keys(oldData.lifeAreas || {});
+                
+                // Check if any area has 'daily' goal but no 'dailyHistory'
+                for (const key of activeAreas) {
+                    const goals = oldData.lifeAreas[key].goals;
+                    if (goals && goals.daily && !goals.dailyHistory) {
+                        needsRepair = true;
+                        break;
+                    }
+                }
+
+                if (needsRepair) {
+                    console.log("Repairing broken V7 data...");
+                    // Downgrade to V6 to force V6->V7 migration logic to run
+                    // But wait, if it has V4 structure (from V1 fallback), we might need to downgrade to V4!
+                    // Let's check for 'annualGoals' (V5+ feature).
+                    const hasAnnualGoals = activeAreas.some(k => oldData.lifeAreas[k].goals?.annualGoals);
+                    
+                    if (!hasAnnualGoals) {
+                        // It's V4 structure masquerading as V7
+                        return migrateData({ ...oldData, version: 4 });
+                    } else {
+                        // It's V6 structure (has annualGoals but missing dailyHistory)
+                        return migrateData({ ...oldData, version: 6 });
+                    }
+                }
+                
+                return oldData;
+            }
 
             // Version 6 → 7: Convert daily goal + completions to dailyHistory
             if (oldData.version === 6) {
@@ -614,13 +645,17 @@
 
                 Object.keys(newData.lifeAreas).forEach(areaKey => {
                     const area = newData.lifeAreas[areaKey];
+                    
+                    // If dailyHistory already exists, skip (safety)
+                    if (area.goals.dailyHistory) return;
+
                     const dailyHistory = {};
 
                     // 1. Migrate current daily goal to today
                     if (area.goals.daily && area.goals.daily.text) {
                         dailyHistory[today] = {
                             text: area.goals.daily.text,
-                            completed: false, // Will be checked against completions below
+                            completed: false, 
                             updatedAt: area.goals.daily.updatedAt
                         };
                     }
@@ -630,7 +665,7 @@
                         area.completions.forEach(completion => {
                             if (!dailyHistory[completion.date]) {
                                 dailyHistory[completion.date] = {
-                                    text: completion.goal || "Completed Task", // Fallback if text missing
+                                    text: completion.goal || "Completed Task",
                                     completed: true,
                                     updatedAt: null
                                 };
@@ -642,10 +677,6 @@
 
                     // Assign new structure
                     area.goals.dailyHistory = dailyHistory;
-                    
-                    // Remove old fields (optional, but cleaner)
-                    // delete area.goals.daily;
-                    // area.completions = []; 
                 });
                 return newData;
             }
@@ -669,6 +700,9 @@
                 const v5Data = { ...oldData, version: 5 };
                 Object.keys(v5Data.lifeAreas).forEach(areaKey => {
                     const goals = v5Data.lifeAreas[areaKey].goals;
+
+                    // Skip if already migrated (safety)
+                    if (goals.annualGoals) return;
 
                     // Convert oneYear to annualGoals (5 goals, first one has old text)
                     const annualGoals = [
@@ -757,6 +791,7 @@
             }
 
             // Version 1 → 5: Full migration (single track to multi-track + 4-1-1 + 5-goal system)
+            // Note: getInitialState returns V7, but we are populating it with legacy V1/V4 data below.
             const newState = getInitialState();
 
             // If old data has goals, migrate them to "business" area
@@ -783,7 +818,12 @@
                 newState.currentQuoteIndex = oldData.currentQuoteIndex;
             }
 
-            return newState;
+            // Important: We've constructed a state that has V7 flag (from getInitialState)
+            // but V4 structure (via convertWeeklyTo411). We MUST downgrade version to 4
+            // so the subsequent migrations (V4->V5->V6->V7) run to normalize the structure.
+            newState.version = 4;
+
+            return migrateData(newState);
         };
 
         // LocalStorage fallback
