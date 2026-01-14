@@ -26,6 +26,7 @@ Use this before deploying to Hosting to catch the “wipe/revert” class of bug
 - For each active life area:
   - Set/edit today’s daily ONE Thing directly from the Dashboard.
   - Refresh the page; verify the text persists.
+- Set/edit the `Right Now (next 5 minutes)` field and verify it persists after refresh.
 - Mark today complete, then uncomplete; verify the UI reflects both states.
 
 ## Progress

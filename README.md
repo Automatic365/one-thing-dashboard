@@ -51,6 +51,7 @@ By default, your data is stored locally on your device. To sync across ALL your 
 - Quick overview of your weekly, monthly, and yearly goals
 - Visual domino effect showing how goals connect
 - Edit your Daily ONE Thing per life area directly from the Dashboard (autosave + templates)
+- Set a `Right Now` focus (next 5 minutes) per life area
 
 ### 2. Goals (Goal Setting to the Now)
 Set up your complete goal hierarchy:
