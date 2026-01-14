@@ -1174,15 +1174,23 @@
 	            const [loading, setLoading] = useState(true);
 	            const [state, setState] = useState(getInitialState);
 	            const [currentView, setCurrentView] = useState('dashboard');
-	            const [syncing, setSyncing] = useState(false);
-	            const [syncError, setSyncError] = useState(null);
-	            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
-	            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
-	            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
-	            const lastMigrationWriteRef = React.useRef(null);
-	            const migrationWriteAttemptsRef = React.useRef(0);
-	            const attemptedVersionFixRef = React.useRef(false);
-	            const stateRef = React.useRef(state);
+		            const [syncing, setSyncing] = useState(false);
+		            const [syncError, setSyncError] = useState(null);
+		            const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
+		            const [lastLocalSaveAt, setLastLocalSaveAt] = useState(null);
+		            const [dismissedReviewReminders, setDismissedReviewReminders] = useState(() => {
+		                try {
+		                    const raw = localStorage.getItem('oneThingDismissedReviewReminders');
+		                    return raw ? JSON.parse(raw) : {};
+		                } catch {
+		                    return {};
+		                }
+		            });
+		            const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
+		            const lastMigrationWriteRef = React.useRef(null);
+		            const migrationWriteAttemptsRef = React.useRef(0);
+		            const attemptedVersionFixRef = React.useRef(false);
+		            const stateRef = React.useRef(state);
 	
 		            React.useEffect(() => {
 		                stateRef.current = state;
@@ -1214,6 +1222,40 @@
 		                    hour: '2-digit',
 		                    minute: '2-digit'
 		                });
+		            };
+
+		            const isLastDayOfMonth = (date = new Date()) => {
+		                const year = date.getFullYear();
+		                const month = date.getMonth();
+		                const lastDay = new Date(year, month + 1, 0).getDate();
+		                return date.getDate() === lastDay;
+		            };
+
+		            const isLastDayOfQuarter = (date = new Date()) => {
+		                const month = date.getMonth(); // 0-based
+		                const isQuarterEndMonth = month === 2 || month === 5 || month === 8 || month === 11;
+		                if (!isQuarterEndMonth) return false;
+		                return isLastDayOfMonth(date);
+		            };
+
+		            const setReviewReminderDismissed = (type, dateStr) => {
+		                const next = {
+		                    ...(dismissedReviewReminders || {}),
+		                    [dateStr]: {
+		                        ...((dismissedReviewReminders && dismissedReviewReminders[dateStr]) || {}),
+		                        [type]: true
+		                    }
+		                };
+		                setDismissedReviewReminders(next);
+		                try {
+		                    localStorage.setItem('oneThingDismissedReviewReminders', JSON.stringify(next));
+		                } catch {
+		                    // ignore
+		                }
+		            };
+
+		            const isReviewReminderDismissed = (type, dateStr) => {
+		                return Boolean(dismissedReviewReminders && dismissedReviewReminders[dateStr] && dismissedReviewReminders[dateStr][type]);
 		            };
 
 	            // Helper to get local date string YYYY-MM-DD
@@ -1787,12 +1829,28 @@
                 }
             };
 
-            const today = new Date().toISOString().split('T')[0];
+		            const today = new Date().toISOString().split('T')[0];
+		            const todayLocal = getLocalDateString();
 
-	            // Get active life areas
-	            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
-	
-	            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
+		            // Get active life areas
+		            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
+
+		            const monthEndDueAreas = isLastDayOfMonth(new Date())
+		                ? activeAreas.filter((areaKey) => !getCurrentMonthReview(areaKey))
+		                : [];
+		            const quarterEndDueAreas = isLastDayOfQuarter(new Date())
+		                ? activeAreas.filter((areaKey) => !getCurrentQuarterReview(areaKey))
+		                : [];
+		            const monthlyReviewDue = monthEndDueAreas.length > 0;
+		            const quarterlyReviewDue = quarterEndDueAreas.length > 0;
+		            const anyReviewDue = monthlyReviewDue || quarterlyReviewDue;
+		            const showMonthlyReminder = monthlyReviewDue && !isReviewReminderDismissed('monthly', todayLocal);
+		            const showQuarterlyReminder = quarterlyReviewDue && !isReviewReminderDismissed('quarterly', todayLocal);
+		            const showReviewReminderBanner =
+		                (currentView === 'dashboard' || currentView === 'reflect') &&
+		                (showMonthlyReminder || showQuarterlyReminder);
+
+		            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
 
 	            if (loading) {
 	                return (
@@ -1853,11 +1911,56 @@
 	                                lastCloudSyncAt={lastCloudSyncAt}
 	                                formatTimeAgo={formatTimeAgo}
 	                                formatShortDateTime={formatShortDateTime}
+	                                anyReviewDue={anyReviewDue}
+	                                monthlyReviewDue={monthlyReviewDue}
+	                                quarterlyReviewDue={quarterlyReviewDue}
+	                                monthEndDueAreasCount={monthEndDueAreas.length}
+	                                quarterEndDueAreasCount={quarterEndDueAreas.length}
 	                            />
+	
+	                            {showReviewReminderBanner && (
+	                                <div className="mt-6">
+	                                    <div className="glass border border-rose-500/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+	                                        <div>
+	                                            <div className="font-bold text-rose-200">Reflection due today</div>
+	                                            <div className="text-sm text-slate-200/80 mt-1">
+	                                                {showMonthlyReminder && (
+	                                                    <span>
+	                                                        Monthly reflection due for <span className="font-mono">{monthEndDueAreas.length}</span> area{monthEndDueAreas.length === 1 ? '' : 's'}.
+	                                                    </span>
+	                                                )}
+	                                                {showMonthlyReminder && showQuarterlyReminder && <span className="mx-2 text-slate-500">•</span>}
+	                                                {showQuarterlyReminder && (
+	                                                    <span>
+	                                                        Quarterly reflection due for <span className="font-mono">{quarterEndDueAreas.length}</span> area{quarterEndDueAreas.length === 1 ? '' : 's'}.
+	                                                    </span>
+	                                                )}
+	                                            </div>
+	                                        </div>
+	                                        <div className="flex items-center gap-2">
+	                                            <button
+	                                                onClick={() => setCurrentView('reflect')}
+	                                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-100 border border-slate-700"
+	                                            >
+	                                                Go to Reflect
+	                                            </button>
+	                                            <button
+	                                                onClick={() => {
+	                                                    if (showMonthlyReminder) setReviewReminderDismissed('monthly', todayLocal);
+	                                                    if (showQuarterlyReminder) setReviewReminderDismissed('quarterly', todayLocal);
+	                                                }}
+	                                                className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg text-sm text-rose-200 border border-rose-500/30"
+	                                            >
+	                                                Dismiss today
+	                                            </button>
+	                                        </div>
+	                                    </div>
+	                                </div>
+	                            )}
 
-                            <main className="mt-8">
-                                {currentView === 'dashboard' && (
-                                    <Dashboard
+	                            <main className="mt-8">
+	                                {currentView === 'dashboard' && (
+	                                    <Dashboard
                                         lifeAreas={state.lifeAreas}
                                         activeAreas={activeAreas}
                                         updateGoal={updateGoal}
@@ -1987,11 +2090,56 @@
 	                        lastCloudSyncAt={lastCloudSyncAt}
 	                        formatTimeAgo={formatTimeAgo}
 	                        formatShortDateTime={formatShortDateTime}
+	                        anyReviewDue={anyReviewDue}
+	                        monthlyReviewDue={monthlyReviewDue}
+	                        quarterlyReviewDue={quarterlyReviewDue}
+	                        monthEndDueAreasCount={monthEndDueAreas.length}
+	                        quarterEndDueAreasCount={quarterEndDueAreas.length}
 	                    />
+	
+		                    {showReviewReminderBanner && (
+		                        <div className="max-w-7xl mx-auto px-4 pt-4">
+		                            <div className="glass border border-rose-500/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+		                                <div>
+		                                    <div className="font-bold text-rose-200">Reflection due today</div>
+		                                    <div className="text-sm text-slate-200/80 mt-1">
+		                                        {showMonthlyReminder && (
+		                                            <span>
+		                                                Monthly reflection due for <span className="font-mono">{monthEndDueAreas.length}</span> area{monthEndDueAreas.length === 1 ? '' : 's'}.
+		                                            </span>
+		                                        )}
+		                                        {showMonthlyReminder && showQuarterlyReminder && <span className="mx-2 text-slate-500">•</span>}
+		                                        {showQuarterlyReminder && (
+		                                            <span>
+		                                                Quarterly reflection due for <span className="font-mono">{quarterEndDueAreas.length}</span> area{quarterEndDueAreas.length === 1 ? '' : 's'}.
+		                                            </span>
+		                                        )}
+		                                    </div>
+		                                </div>
+		                                <div className="flex items-center gap-2">
+		                                    <button
+		                                        onClick={() => setCurrentView('reflect')}
+		                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-100 border border-slate-700"
+		                                    >
+		                                        Go to Reflect
+		                                    </button>
+		                                    <button
+		                                        onClick={() => {
+		                                            if (showMonthlyReminder) setReviewReminderDismissed('monthly', todayLocal);
+		                                            if (showQuarterlyReminder) setReviewReminderDismissed('quarterly', todayLocal);
+		                                        }}
+		                                        className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg text-sm text-rose-200 border border-rose-500/30"
+		                                    >
+		                                        Dismiss today
+		                                    </button>
+		                                </div>
+		                            </div>
+		                        </div>
+		                    )}
 
-                    <main className="max-w-7xl mx-auto px-4 py-8">
-                        {currentView === 'dashboard' && (
-                            <Dashboard
+	                    <main className="max-w-7xl mx-auto px-4 py-8">
+	                        {currentView === 'dashboard' && (
+	                            <Dashboard
                                 lifeAreas={state.lifeAreas}
                                 activeAreas={activeAreas}
                                 updateGoal={updateGoal}
@@ -2718,7 +2866,12 @@
 		            lastLocalSaveAt,
 		            lastCloudSyncAt,
 		            formatTimeAgo,
-		            formatShortDateTime
+		            formatShortDateTime,
+		            anyReviewDue = false,
+		            monthlyReviewDue = false,
+		            quarterlyReviewDue = false,
+		            monthEndDueAreasCount = 0,
+		            quarterEndDueAreasCount = 0
 		        }) {
 	            const navItems = [
 	                { id: 'dashboard', label: 'Dashboard', icon: '🎯' },
@@ -2759,22 +2912,36 @@
 		                            </div>
 
                             <div className="flex items-center space-x-1">
-                                {navItems.map(item => {
-                                    const isActive = currentView === item.id;
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => setCurrentView(item.id)}
-                                            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
-                                                ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
-                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                                                }`}
-                                        >
-                                            <span className="mr-2">{item.icon}</span>
-                                            <span className="hidden md:inline">{item.label}</span>
-                                        </button>
-                                    );
-                                })}
+	                                {navItems.map(item => {
+	                                    const isActive = currentView === item.id;
+	                                    const showDueBadge = item.id === 'reflect' && anyReviewDue;
+	                                    const badgeText = showDueBadge
+	                                        ? (monthlyReviewDue && quarterlyReviewDue
+	                                            ? `Due (${monthEndDueAreasCount + quarterEndDueAreasCount})`
+	                                            : monthlyReviewDue
+	                                                ? `Monthly due (${monthEndDueAreasCount})`
+	                                                : `Quarterly due (${quarterEndDueAreasCount})`)
+	                                        : '';
+	                                    return (
+	                                        <button
+	                                            key={item.id}
+	                                            onClick={() => setCurrentView(item.id)}
+	                                            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+	                                                ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
+	                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+	                                                }`}
+	                                            title={badgeText || undefined}
+	                                        >
+	                                            <span className="mr-2">{item.icon}</span>
+	                                            <span className="hidden md:inline">{item.label}</span>
+	                                            {showDueBadge && (
+	                                                <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-200 border border-rose-500/30 hidden md:inline-flex">
+	                                                    Due
+	                                                </span>
+	                                            )}
+	                                        </button>
+	                                    );
+	                                })}
 
 	                                {user && handleLogout && (
 	                                    <button
