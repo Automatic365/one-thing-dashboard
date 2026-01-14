@@ -479,6 +479,74 @@
             financial: { name: 'Financial Life', icon: '💰', color: 'yellow', order: 7 }
         };
 
+        const QUARTERLY_CONFIG = {
+            Q1: {
+                title: "DO LESS. ACHIEVE MORE.",
+                subtitle: "It's never too late to start planning ahead and striving for amazing new opportunities. The key is just starting. No matter your past wins or losses, your future is spotless! When you decide to start with a clean slate, it's an opportunity to have your best year yet.",
+                questions: [
+                    "Where do you currently stand in relation to your goal?",
+                    "What's the gap between where you are and where you want to be?",
+                    "If you're behind, what's one thing you can do over the next quarter to close the gap?",
+                    "If you're ahead, can you raise your goal and achieve even more?",
+                    "What's one thing you can say \"no\" to in order to ensure success?"
+                ],
+                checklist: [
+                    "Time block your year: Time off, ONE Thing, Planning time",
+                    "Set aside time for your RESET and Goal Setting retreats",
+                    "Make note of important personal dates (birthdays, holidays, anniversaries)"
+                ]
+            },
+            Q2: {
+                title: "THINK BIG, GO SMALL",
+                subtitle: "The glow of the new year's goal has faded. Are the plans you made for the year starting to go by the wayside? Instead of falling into a second-quarter slump, use this quarter to regain your focus by thinking big and going small. Sometimes our goals go places we don't anticipate. They branch out and grow shoots. All those extra little branches and leaves can actually stunt your growth. Like a good gardener, use this time to prune and evaluate what matters most.",
+                questions: [
+                    "Where do you currently stand in relation to your goals?",
+                    "What's the gap between where you are and where you want to be? Considering we're a quarter of the way through the year, are you at least 25% of the way to your goal?",
+                    "If you're behind, what's one thing you can do over the next quarter to close the gap?",
+                    "If you're ahead, can you raise your goal and achieve even more?",
+                    "What's one thing you can say \"no\" to in order to ensure success?"
+                ],
+                checklist: [
+                    "Review and adjust your time blocks. It's not uncommon to fine-tune your time blocks every now and then so they remain effective.",
+                    "Make care of important personal dates (birthdays, holidays, anniversaries)",
+                    "Time block your Mid-Year RESET Retreat"
+                ]
+            },
+            Q3: {
+                title: "RESET",
+                subtitle: "How are you doing on your goals? Whether you're on track or struggling to catch up, the middle of the year is the perfect time for a RESET Retreat. A RESET isn't simply hitting a reset button and starting over—it is your opportunity to reflect and change. While reflection is a powerful tool for forecasting and designing a more intentional future, thoughtfully look at your past without judgment in order to take the best possible step for a more successful future.",
+                questions: [
+                    "Where do you currently stand in relation to your goal?",
+                    "We're halfway through the year. Are you at least 50% of the way to your goal?",
+                    "If you're behind, what's one thing you can do over the next quarter to close the gap?",
+                    "If you're ahead, can you raise your goal and achieve even more?",
+                    "What's one thing you can say \"no\" to in order to ensure success?"
+                ],
+                checklist: [
+                    "You've got your RESET Retreat on the books. This is the time to narrow the focus and gain clarity to make this your most productive year yet.",
+                    "Review and adjust your time blocks based on your RESET Retreat",
+                    "Make note of important personal dates (birthdays, holidays, anniversaries)"
+                ]
+            },
+            Q4: {
+                title: "LINE UP YOUR DOMINOES",
+                subtitle: "Heading into Q4, it may seem like you have plenty of time to finish the year strong, but the truth is these last few months are some of the busiest of the year. Take a look at your planner and ask yourself: \"How many working weeks do I really have left?\" The holiday season always takes a chunk out of your work time. It's important you don't sacrifice your time off so you can meet your annual goals. Instead, adjust your activities in a way that will allow you to both achieve your goals and focus on what matters most at the end of the year.",
+                questions: [
+                    "Where do you currently stand in relation to your goal?",
+                    "What's the gap between where you are and where you want to be?",
+                    "If you're behind, what's one thing you can do over the next quarter to close the gap?",
+                    "If you're ahead, can you raise your goal and achieve even more?",
+                    "What's one thing you can say \"no\" to in order to ensure success?"
+                ],
+                checklist: [
+                    "You've got three months left to hit your yearly goals. Review and adjust your time blocks to what matters most.",
+                    "Schedule your Goal Setting Retreat",
+                    "Make note of important personal dates (birthdays, holidays, anniversaries)",
+                    "Get your next The ONE Thing Planner"
+                ]
+            }
+        };
+
         const createEmptyGoals = () => ({
             someday: { text: '', updatedAt: null },
             fiveYear: { text: '', updatedAt: null },
@@ -513,14 +581,15 @@
         });
 
         const getInitialState = () => ({
-            version: 5, // Track data version for migrations (v5 = 5 goals per timeframe with selection)
+            version: 6, // Track data version for migrations (v6 = added quarterly reviews)
             lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
                 acc[key] = {
                     active: false,
                     goals: createEmptyGoals(),
                     completions: [],
                     reviews: {
-                        monthly: []
+                        monthly: [],
+                        quarterly: []
                     }
                 };
                 return acc;
@@ -534,14 +603,27 @@
 
         // Migrate old data format to new multi-goal format
         const migrateData = (oldData) => {
-            // If already version 5, no migration needed
-            if (oldData.version === 5) return oldData;
+            // If already version 6, no migration needed
+            if (oldData.version === 6) return oldData;
+
+            // Version 5 → 6: Add quarterly reviews array
+            if (oldData.version === 5) {
+                const newData = { ...oldData, version: 6 };
+                Object.keys(newData.lifeAreas).forEach(areaKey => {
+                    if (!newData.lifeAreas[areaKey].reviews) {
+                        newData.lifeAreas[areaKey].reviews = { monthly: [], quarterly: [] };
+                    } else if (!newData.lifeAreas[areaKey].reviews.quarterly) {
+                        newData.lifeAreas[areaKey].reviews.quarterly = [];
+                    }
+                });
+                return newData;
+            }
 
             // Version 4 → 5: Convert to 5 goals per timeframe with selection
             if (oldData.version === 4) {
-                const newData = { ...oldData, version: 5 };
-                Object.keys(newData.lifeAreas).forEach(areaKey => {
-                    const goals = newData.lifeAreas[areaKey].goals;
+                const v5Data = { ...oldData, version: 5 };
+                Object.keys(v5Data.lifeAreas).forEach(areaKey => {
+                    const goals = v5Data.lifeAreas[areaKey].goals;
 
                     // Convert oneYear to annualGoals (5 goals, first one has old text)
                     const annualGoals = [
@@ -568,7 +650,7 @@
                     ];
 
                     // Update goals structure
-                    newData.lifeAreas[areaKey].goals = {
+                    v5Data.lifeAreas[areaKey].goals = {
                         someday: goals.someday,
                         fiveYear: goals.fiveYear,
                         annualGoals,
@@ -580,7 +662,8 @@
                         daily: goals.daily
                     };
                 });
-                return newData;
+                // Now convert v5 to v6
+                return migrateData(v5Data);
             }
 
             // Helper function to convert single weekly goal to 4-1-1 structure
@@ -1044,6 +1127,57 @@
                 return area.reviews.monthly.find(r => r.date === currentMonth) || null;
             };
 
+            // Get current quarter string (e.g. 2026-Q1)
+            const getCurrentQuarterString = () => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const quarter = Math.floor(now.getMonth() / 3) + 1;
+                return `${year}-Q${quarter}`;
+            };
+
+            // Save quarterly review for a life area
+            const saveQuarterlyReview = (areaKey, reviewData) => {
+                const currentQuarter = getCurrentQuarterString();
+                const area = state.lifeAreas[areaKey];
+                const existingReviews = area.reviews.quarterly || [];
+
+                // Check if review for current quarter exists
+                const existingIndex = existingReviews.findIndex(r => r.date === currentQuarter);
+
+                let updatedReviews;
+                if (existingIndex >= 0) {
+                    // Update existing review
+                    updatedReviews = [...existingReviews];
+                    updatedReviews[existingIndex] = { date: currentQuarter, ...reviewData };
+                } else {
+                    // Add new review
+                    updatedReviews = [...existingReviews, { date: currentQuarter, ...reviewData }];
+                }
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...area,
+                            reviews: {
+                                ...area.reviews,
+                                quarterly: updatedReviews
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Get quarterly review for current quarter
+            const getCurrentQuarterReview = (areaKey) => {
+                const currentQuarter = getCurrentQuarterString();
+                const area = state.lifeAreas[areaKey];
+                if (!area || !area.reviews || !area.reviews.quarterly) return null;
+                return area.reviews.quarterly.find(r => r.date === currentQuarter) || null;
+            };
+
             // Export data
             const exportData = () => {
                 const dataStr = JSON.stringify(state, null, 2);
@@ -1184,13 +1318,15 @@
                                 )}
 
                                 {currentView === 'reflect' && (
-                                    <MonthlyReview
+                                    <Reflection
                                         lifeAreas={state.lifeAreas}
                                         activeAreas={activeAreas}
                                         selectedLifeArea={selectedLifeArea}
                                         setSelectedLifeArea={setSelectedLifeArea}
                                         saveMonthlyReview={saveMonthlyReview}
                                         getCurrentMonthReview={getCurrentMonthReview}
+                                        saveQuarterlyReview={saveQuarterlyReview}
+                                        getCurrentQuarterReview={getCurrentQuarterReview}
                                         toggleLifeArea={toggleLifeArea}
                                     />
                                 )}
@@ -1266,13 +1402,15 @@
                         )}
 
                         {currentView === 'reflect' && (
-                            <MonthlyReview
+                            <Reflection
                                 lifeAreas={state.lifeAreas}
                                 activeAreas={activeAreas}
                                 selectedLifeArea={selectedLifeArea}
                                 setSelectedLifeArea={setSelectedLifeArea}
                                 saveMonthlyReview={saveMonthlyReview}
                                 getCurrentMonthReview={getCurrentMonthReview}
+                                saveQuarterlyReview={saveQuarterlyReview}
+                                getCurrentQuarterReview={getCurrentQuarterReview}
                                 toggleLifeArea={toggleLifeArea}
                             />
                         )}
@@ -1429,8 +1567,74 @@
         }
 
         // ==========================================
-        // MONTHLY REVIEW
+        // REFLECTION & PLANNING
         // ==========================================
+        function Reflection({ 
+            lifeAreas, 
+            activeAreas, 
+            selectedLifeArea, 
+            setSelectedLifeArea, 
+            saveMonthlyReview, 
+            getCurrentMonthReview, 
+            saveQuarterlyReview, 
+            getCurrentQuarterReview, 
+            toggleLifeArea 
+        }) {
+            const [reflectionType, setReflectionType] = React.useState('monthly'); // 'monthly' or 'quarterly'
+
+            return (
+                <div className="space-y-8 fade-in">
+                    {/* Reflection Type Toggle */}
+                    <div className="flex justify-center">
+                        <div className="glass p-1 rounded-2xl flex border border-slate-700/50">
+                            <button
+                                onClick={() => setReflectionType('monthly')}
+                                className={`px-8 py-3 rounded-xl text-sm font-bold tracking-wider uppercase transition-all ${
+                                    reflectionType === 'monthly'
+                                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                Monthly
+                            </button>
+                            <button
+                                onClick={() => setReflectionType('quarterly')}
+                                className={`px-8 py-3 rounded-xl text-sm font-bold tracking-wider uppercase transition-all ${
+                                    reflectionType === 'quarterly'
+                                        ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                Quarterly
+                            </button>
+                        </div>
+                    </div>
+
+                    {reflectionType === 'monthly' ? (
+                        <MonthlyReview
+                            lifeAreas={lifeAreas}
+                            activeAreas={activeAreas}
+                            selectedLifeArea={selectedLifeArea}
+                            setSelectedLifeArea={setSelectedLifeArea}
+                            saveMonthlyReview={saveMonthlyReview}
+                            getCurrentMonthReview={getCurrentMonthReview}
+                            toggleLifeArea={toggleLifeArea}
+                        />
+                    ) : (
+                        <QuarterlyReview
+                            lifeAreas={lifeAreas}
+                            activeAreas={activeAreas}
+                            selectedLifeArea={selectedLifeArea}
+                            setSelectedLifeArea={setSelectedLifeArea}
+                            saveQuarterlyReview={saveQuarterlyReview}
+                            getCurrentQuarterReview={getCurrentQuarterReview}
+                            toggleLifeArea={toggleLifeArea}
+                        />
+                    )}
+                </div>
+            );
+        }
+
         function MonthlyReview({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, saveMonthlyReview, getCurrentMonthReview, toggleLifeArea }) {
             const [formData, setFormData] = React.useState({
                 accomplished: '',
@@ -1492,19 +1696,19 @@
             return (
                 <div className="space-y-8 fade-in">
                     {/* Header */}
-                    <div className="glass rounded-2xl p-8">
-                        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 mb-2">
+                    <div className="glass rounded-2xl p-8 border-l-4 border-cyan-500">
+                        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
                             Monthly Reflection
                         </h2>
                         <p className="text-slate-400 text-lg">Review your progress for {currentMonth}</p>
                     </div>
 
                     {/* Life Area Selector */}
-                    <div className="glass rounded-2xl p-6">
-                        <label className="block text-sm font-medium text-slate-300 mb-4">Select Life Area</label>
+                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 ml-1">Select Life Area</label>
                         {activeAreas.length === 0 ? (
                             <div className="text-center py-8">
-                                <p className="text-slate-400 mb-4">No active life areas. Activate one to start reflecting.</p>
+                                <p className="text-slate-400 mb-6">No active life areas. Activate one to start reflecting.</p>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                     {Object.keys(LIFE_AREAS).map(key => (
                                         <button
@@ -1529,7 +1733,7 @@
                                             onClick={() => setSelectedLifeArea(areaKey)}
                                             className={`px-5 py-3 rounded-xl border transition-all transform hover:scale-105 ${
                                                 isSelected
-                                                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-transparent shadow-glow'
+                                                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-transparent shadow-glow'
                                                     : 'bg-slate-800/50 text-slate-300 border-slate-700 hover:border-indigo-500/50'
                                             }`}
                                         >
@@ -1545,97 +1749,95 @@
                     {selectedLifeArea && (
                         <>
                             {/* Load/Save Controls */}
-                            <div className="glass rounded-2xl p-6">
-                                <div className="flex gap-4">
-                                    <button
-                                        onClick={loadCurrentReview}
-                                        className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition-all transform hover:scale-105"
-                                    >
-                                        Load Current Month's Review
-                                    </button>
-                                    <button
-                                        onClick={handleSave}
-                                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium shadow-glow hover:shadow-cyan-500/50 transition-all transform hover:scale-105"
-                                    >
-                                        Save Review
-                                    </button>
-                                    {showSaved && (
-                                        <div className="px-4 py-3 rounded-xl bg-green-500/20 text-green-400 border border-green-500/30 flex items-center">
-                                            ✓ Saved!
-                                        </div>
-                                    )}
-                                </div>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={loadCurrentReview}
+                                    className="px-6 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white border border-slate-600 transition-all shadow-lg flex items-center"
+                                >
+                                    <span className="mr-2">📥</span> Load Current Month
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-glow hover:shadow-cyan-500/40 transition-all transform hover:-translate-y-0.5"
+                                >
+                                    Save Reflection
+                                </button>
+                                {showSaved && (
+                                    <div className="px-4 py-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center animate-pulse">
+                                        <span className="mr-2">✓</span> Saved Successfully
+                                    </div>
+                                )}
                             </div>
 
                             {/* Review Questions */}
-                            <div className="space-y-6">
+                            <div className="grid grid-cols-1 gap-6">
                                 {/* Question 1 */}
-                                <div className="glass rounded-2xl p-6">
-                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                <div className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-cyan-500/30 transition-colors">
+                                    <label className="block text-lg font-medium text-cyan-300 mb-4 leading-relaxed">
                                         1. What's one thing you accomplished last month that made everything else easier or unnecessary?
                                     </label>
                                     <textarea
                                         value={formData.accomplished}
                                         onChange={(e) => setFormData({ ...formData, accomplished: e.target.value })}
-                                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                        className="w-full px-5 py-4 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all text-lg leading-relaxed"
                                         rows="3"
                                         placeholder="Reflect on your biggest win..."
                                     />
                                 </div>
 
                                 {/* Question 2 */}
-                                <div className="glass rounded-2xl p-6">
-                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                <div className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-cyan-500/30 transition-colors">
+                                    <label className="block text-lg font-medium text-cyan-300 mb-4 leading-relaxed">
                                         2. What's one thing you can do differently this month that will make everything else easier or unnecessary?
                                     </label>
                                     <textarea
                                         value={formData.doDifferently}
                                         onChange={(e) => setFormData({ ...formData, doDifferently: e.target.value })}
-                                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                        className="w-full px-5 py-4 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all text-lg leading-relaxed"
                                         rows="3"
                                         placeholder="What will you change this month?"
                                     />
                                 </div>
 
                                 {/* Question 3 */}
-                                <div className="glass rounded-2xl p-6">
-                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                <div className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-cyan-500/30 transition-colors">
+                                    <label className="block text-lg font-medium text-cyan-300 mb-4 leading-relaxed">
                                         3. What priorities can you accomplish this month to feel like you're on track for your annual goals?
                                     </label>
                                     <textarea
                                         value={formData.priorities}
                                         onChange={(e) => setFormData({ ...formData, priorities: e.target.value })}
-                                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                        className="w-full px-5 py-4 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all text-lg leading-relaxed"
                                         rows="3"
                                         placeholder="List your key priorities..."
                                     />
                                 </div>
 
                                 {/* Question 4 & 5 - Obstacles and Solutions */}
-                                <div className="glass rounded-2xl p-6">
-                                    <label className="block text-sm font-medium text-cyan-400 mb-3">
+                                <div className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-cyan-500/30 transition-colors">
+                                    <label className="block text-lg font-medium text-cyan-300 mb-6 leading-relaxed">
                                         4 & 5. What three things are most likely to stop you, and what's one solution for each?
                                     </label>
                                     <div className="space-y-4">
                                         {[0, 1, 2].map(index => (
-                                            <div key={index} className="grid md:grid-cols-2 gap-4 p-4 bg-slate-800/30 rounded-xl">
+                                            <div key={index} className="grid md:grid-cols-2 gap-4 p-5 bg-slate-800/40 rounded-2xl border border-slate-700/50">
                                                 <div>
-                                                    <label className="block text-xs text-slate-400 mb-2">Obstacle {index + 1}</label>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Obstacle {index + 1}</label>
                                                     <input
                                                         type="text"
                                                         value={formData.obstacles[index]}
                                                         onChange={(e) => updateObstacle(index, e.target.value)}
-                                                        className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all"
+                                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
                                                         placeholder="What might stop you?"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs text-slate-400 mb-2">Solution {index + 1}</label>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Solution {index + 1}</label>
                                                     <input
                                                         type="text"
                                                         value={formData.solutions[index]}
                                                         onChange={(e) => updateSolution(index, e.target.value)}
-                                                        className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all"
                                                         placeholder="How will you overcome it?"
                                                     />
                                                 </div>
@@ -1645,6 +1847,230 @@
                                 </div>
                             </div>
                         </>
+                    )}
+                </div>
+            );
+        }
+
+        function QuarterlyReview({ 
+            lifeAreas, 
+            activeAreas, 
+            selectedLifeArea, 
+            setSelectedLifeArea, 
+            saveQuarterlyReview, 
+            getCurrentQuarterReview, 
+            toggleLifeArea 
+        }) {
+            const [formData, setFormData] = React.useState({
+                q1: '',
+                q2: '',
+                q3: '',
+                q4: '',
+                q5: '',
+                actions: {}
+            });
+            const [showSaved, setShowSaved] = React.useState(false);
+
+            // Get current quarter info
+            const now = new Date();
+            const quarterNum = Math.floor(now.getMonth() / 3) + 1;
+            const quarterKey = `Q${quarterNum}`;
+            const config = QUARTERLY_CONFIG[quarterKey];
+            const currentQuarterDisplay = `${now.getFullYear()} ${quarterKey}`;
+
+            // Auto-load data when switching life areas
+            React.useEffect(() => {
+                const existing = getCurrentQuarterReview(selectedLifeArea);
+                if (existing) {
+                    setFormData({
+                        q1: existing.q1 || '',
+                        q2: existing.q2 || '',
+                        q3: existing.q3 || '',
+                        q4: existing.q4 || '',
+                        q5: existing.q5 || '',
+                        actions: existing.actions || {}
+                    });
+                } else {
+                    setFormData({
+                        q1: '',
+                        q2: '',
+                        q3: '',
+                        q4: '',
+                        q5: '',
+                        actions: {}
+                    });
+                }
+            }, [selectedLifeArea]); // Only run when life area changes
+
+            // Manual save function
+            const handleSave = () => {
+                if (!selectedLifeArea) return;
+                saveQuarterlyReview(selectedLifeArea, formData);
+                setShowSaved(true);
+                setTimeout(() => setShowSaved(false), 2000);
+            };
+
+            const toggleAction = (index) => {
+                const newActions = { ...formData.actions };
+                newActions[index] = !newActions[index];
+                
+                const newFormData = { ...formData, actions: newActions };
+                setFormData(newFormData);
+                
+                // Auto-save when checking items
+                saveQuarterlyReview(selectedLifeArea, newFormData);
+            };
+
+            return (
+                <div className="space-y-8 fade-in">
+                    {/* Header */}
+                    <div className="glass rounded-2xl p-8 border-l-4 border-purple-500">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                            <div>
+                                <h2 className="text-4xl font-black text-white mb-2 tracking-tighter">
+                                    {quarterKey} <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-500">{config.title}</span>
+                                </h2>
+                                <p className="text-slate-400 text-lg max-w-3xl leading-relaxed">
+                                    {config.subtitle}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <span className="px-4 py-1.5 rounded-full bg-purple-500/20 text-purple-300 text-sm font-bold border border-purple-500/30 uppercase tracking-widest">
+                                    Quarterly Review
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Life Area Selector */}
+                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 ml-1">Select Life Area</label>
+                        {activeAreas.length === 0 ? (
+                            <div className="text-center py-8">
+                                <p className="text-slate-400 mb-6">No active life areas. Activate one to start reflecting.</p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {Object.keys(LIFE_AREAS).map(key => (
+                                        <button
+                                            key={key}
+                                            onClick={() => toggleLifeArea(key)}
+                                            className="px-4 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700 hover:border-indigo-500/50 transition-all"
+                                        >
+                                            <span className="text-xl">{LIFE_AREAS[key].icon}</span>
+                                            <span className="block text-sm text-slate-300 mt-1">{LIFE_AREAS[key].name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-3">
+                                {activeAreas.map(areaKey => {
+                                    const area = LIFE_AREAS[areaKey];
+                                    const isSelected = selectedLifeArea === areaKey;
+                                    return (
+                                        <button
+                                            key={areaKey}
+                                            onClick={() => setSelectedLifeArea(areaKey)}
+                                            className={`px-5 py-3 rounded-xl border transition-all transform hover:scale-105 ${
+                                                isSelected
+                                                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-transparent shadow-glow'
+                                                    : 'bg-slate-800/50 text-slate-300 border-slate-700 hover:border-indigo-500/50'
+                                            }`}
+                                        >
+                                            <span className="mr-2">{area.icon}</span>
+                                            {area.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedLifeArea && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 space-y-6">
+                                {/* Load/Save Controls */}
+                                <div className="flex items-center gap-4 mb-8">
+                                    <button
+                                        onClick={handleSave}
+                                        className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold shadow-glow hover:shadow-purple-500/40 transition-all transform hover:-translate-y-0.5"
+                                    >
+                                        Save Quarterly Reflection
+                                    </button>
+                                    {showSaved && (
+                                        <div className="px-4 py-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center animate-pulse">
+                                            <span className="mr-2">✓</span> Saved
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-6">
+                                    <h3 className="text-xl font-bold text-white flex items-center tracking-tight">
+                                        <span className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center mr-4 text-purple-400 border border-purple-500/30">💭</span>
+                                        REFLECT & PLAN
+                                    </h3>
+                                    
+                                    {config.questions.map((q, i) => (
+                                        <div key={i} className="glass rounded-2xl p-8 border border-slate-700/50 hover:border-purple-500/30 transition-colors">
+                                            <label className="block text-lg font-medium text-indigo-300 mb-4 leading-relaxed">
+                                                {i + 1}. {q}
+                                            </label>
+                                            <textarea
+                                                value={formData[`q${i + 1}`]}
+                                                onChange={(e) => setFormData({ ...formData, [`q${i + 1}`]: e.target.value })}
+                                                className="w-full px-5 py-4 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all text-lg leading-relaxed"
+                                                rows="3"
+                                                placeholder="Your reflection..."
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="sticky top-24">
+                                    <h3 className="text-xl font-bold text-white flex items-center mb-6 tracking-tight">
+                                        <span className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center mr-4 text-indigo-400 border border-indigo-500/30">✔️</span>
+                                        ACTIONS TO TAKE
+                                    </h3>
+                                    
+                                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                                        <div className="space-y-6">
+                                            {config.checklist.map((item, i) => (
+                                                <div 
+                                                    key={i} 
+                                                    onClick={() => toggleAction(i)}
+                                                    className="flex items-start gap-4 cursor-pointer group"
+                                                >
+                                                    <div className={`mt-1 flex-shrink-0 w-6 h-6 rounded-md border-2 transition-all flex items-center justify-center ${
+                                                        formData.actions[i] 
+                                                            ? 'bg-indigo-500 border-indigo-400 shadow-glow shadow-indigo-500/30' 
+                                                            : 'border-slate-600 group-hover:border-indigo-500/50'
+                                                    }`}>
+                                                        {formData.actions[i] && (
+                                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7"></path>
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    <span className={`text-sm leading-relaxed transition-colors ${
+                                                        formData.actions[i] ? 'text-slate-400 line-through' : 'text-slate-200 group-hover:text-white'
+                                                    }`}>
+                                                        {item}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-10 p-5 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                                            <p className="text-xs text-indigo-300 font-medium leading-relaxed">
+                                                <strong className="block text-indigo-200 mb-1 uppercase tracking-widest text-[10px]">Alignment Check:</strong>
+                                                Review your Annual Goal for <strong>{LIFE_AREAS[selectedLifeArea].name}</strong> to ensure your quarterly actions are leading you in the right direction.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
             );
