@@ -1443,6 +1443,17 @@
 
             const currentMonth = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
 
+            // Clear form when switching life areas
+            React.useEffect(() => {
+                setFormData({
+                    accomplished: '',
+                    doDifferently: '',
+                    priorities: '',
+                    obstacles: ['', '', ''],
+                    solutions: ['', '', '']
+                });
+            }, [selectedLifeArea]);
+
             // Manual load function
             const loadCurrentReview = () => {
                 if (!selectedLifeArea) return;

@@ -18,11 +18,12 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 - One review per month per active life area ✓
 - Reviews saved with timestamp to Firebase/localStorage ✓
 - Manual load/save with buttons (no automatic loading) ✓
+- Form clears when switching life areas (prevents data mixing) ✓
 - Simple form interface with life area selector ✓
 - Optional and non-intrusive ✓
 
 ### Future Enhancements for Phase 1
-- **Auto-load existing review**: Automatically load the current month's review when switching life areas (requires React.useEffect optimization to avoid state corruption)
+- **Auto-load existing review**: Automatically load the current month's review when switching life areas instead of clearing the form (requires careful React.useEffect implementation to avoid state corruption)
 - **View history of past reviews**: Add ability to browse and view previous months' reviews
 - **Visual indicator on tab**: Show badge on Reflect tab during first 7 days of month to encourage timely reflection
 - **Progress tracking**: Show completion status for monthly reviews across all active areas
