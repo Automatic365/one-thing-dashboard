@@ -887,6 +887,148 @@
 	        const saveToLocalStorage = (state) => {
 	            localStorage.setItem('oneThingApp', JSON.stringify(state));
 	        };
+
+	        const shiftDateStr = (dateStr, deltaDays) => {
+	            const [y, m, d] = dateStr.split('-').map(Number);
+	            const date = new Date(Date.UTC(y, m - 1, d));
+	            date.setUTCDate(date.getUTCDate() + deltaDays);
+	            const newY = date.getUTCFullYear();
+	            const newM = String(date.getUTCMonth() + 1).padStart(2, '0');
+	            const newD = String(date.getUTCDate()).padStart(2, '0');
+	            return `${newY}-${newM}-${newD}`;
+	        };
+	
+	        const createDemoState = (todayStr) => {
+	            const demo = getInitialState();
+	
+	            const active = ['business', 'health', 'relationships'];
+	            Object.keys(demo.lifeAreas).forEach((key) => {
+	                demo.lifeAreas[key].active = active.includes(key);
+	            });
+	
+	            const setArea = (areaKey, payload) => {
+	                const area = demo.lifeAreas[areaKey];
+	                if (!area) return;
+	                area.goals = { ...area.goals, ...payload };
+	            };
+	
+	            setArea('business', {
+	                someday: { text: 'Build a product that helps people focus.', updatedAt: new Date().toISOString() },
+	                fiveYear: { text: 'Reach $20k MRR with a lean, joyful team.', updatedAt: new Date().toISOString() },
+	                annualGoals: [
+	                    { text: 'Ship v1 and retain 50 weekly users', updatedAt: new Date().toISOString() },
+	                    { text: 'Build a simple onboarding funnel', updatedAt: new Date().toISOString() },
+	                    { text: 'Publish 12 high-quality posts', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                annualOneThingIndex: 0,
+	                monthlyGoals: [
+	                    { text: 'Fix the top 10 UX paper cuts', updatedAt: new Date().toISOString() },
+	                    { text: 'Add demo data + guided tour', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                monthlyOneThingIndex: 0,
+	                weeklyGoals: [
+	                    { text: 'Deliver dashboard improvements', updatedAt: new Date().toISOString() },
+	                    { text: 'Reduce sync errors to zero', updatedAt: new Date().toISOString() },
+	                    { text: 'Draft 1 blog post', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                weeklyOneThingIndex: 0
+	            });
+	
+	            setArea('health', {
+	                someday: { text: 'Feel strong, energetic, and consistent.', updatedAt: new Date().toISOString() },
+	                fiveYear: { text: 'Run a comfortable half marathon.', updatedAt: new Date().toISOString() },
+	                annualGoals: [
+	                    { text: 'Train 3x/week consistently', updatedAt: new Date().toISOString() },
+	                    { text: 'Walk 8k steps/day average', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                annualOneThingIndex: 0,
+	                monthlyGoals: [
+	                    { text: 'Complete 12 workouts', updatedAt: new Date().toISOString() },
+	                    { text: 'Stretch 10 minutes daily', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                monthlyOneThingIndex: 0,
+	                weeklyGoals: [
+	                    { text: '3 workouts', updatedAt: new Date().toISOString() },
+	                    { text: '2 long walks', updatedAt: new Date().toISOString() },
+	                    { text: 'Meal prep on Sunday', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                weeklyOneThingIndex: 0
+	            });
+	
+	            setArea('relationships', {
+	                someday: { text: 'Be present and intentional with the people I love.', updatedAt: new Date().toISOString() },
+	                fiveYear: { text: 'Create rituals that deepen our relationships.', updatedAt: new Date().toISOString() },
+	                annualGoals: [
+	                    { text: 'Plan 12 memorable dates', updatedAt: new Date().toISOString() },
+	                    { text: 'Call family weekly', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                annualOneThingIndex: 0,
+	                monthlyGoals: [
+	                    { text: '1 meaningful date night', updatedAt: new Date().toISOString() },
+	                    { text: '2 family check-ins', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                monthlyOneThingIndex: 0,
+	                weeklyGoals: [
+	                    { text: 'Plan one small surprise', updatedAt: new Date().toISOString() },
+	                    { text: 'One long conversation (no phones)', updatedAt: new Date().toISOString() },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null },
+	                    { text: '', updatedAt: null }
+	                ],
+	                weeklyOneThingIndex: 0
+	            });
+	
+	            active.forEach((areaKey, idx) => {
+	                const area = demo.lifeAreas[areaKey];
+	                if (!area) return;
+	                const dailyHistory = { ...(area.goals.dailyHistory || {}) };
+	                for (let i = 0; i < 14; i++) {
+	                    const date = shiftDateStr(todayStr, -i);
+	                    const completed = i % 3 !== idx % 3;
+	                    const text =
+	                        areaKey === 'business'
+	                            ? (i === 0 ? 'Ship the dashboard daily editor' : `Business focus #${i + 1}`)
+	                            : areaKey === 'health'
+	                                ? (i === 0 ? '30 minute workout' : `Health focus #${i + 1}`)
+	                                : (i === 0 ? 'Send a thoughtful message' : `Relationship focus #${i + 1}`);
+	                    dailyHistory[date] = {
+	                        text,
+	                        completed,
+	                        updatedAt: new Date().toISOString()
+	                    };
+	                }
+	                area.goals.dailyHistory = dailyHistory;
+	            });
+	
+	            demo.timeBlocks = [
+	                { id: Date.now(), date: todayStr, startTime: '09:00', endTime: '11:00', title: 'Deep Work: ONE Thing', lifeArea: 'business', completed: false },
+	                { id: Date.now() + 1, date: todayStr, startTime: '16:00', endTime: '17:00', title: 'Workout', lifeArea: 'health', completed: false }
+	            ];
+	
+	            demo.currentQuoteIndex = 0;
+	            return demo;
+	        };
 	
 	        const normalizeForCompare = (value) => {
 	            const seen = new WeakSet();
@@ -1114,6 +1256,35 @@
 	                    saveToLocalStorage(newState);
 	                }
 	            }, [user]);
+	
+	            const clearAllData = () => {
+	                const message = user
+	                    ? 'This will overwrite your cloud-synced data with an empty state. Type CLEAR to confirm:'
+	                    : 'This will clear your local data and reset the app. Continue?';
+	                if (user) {
+	                    const typed = window.prompt(message);
+	                    if (typed !== 'CLEAR') return;
+	                } else if (!window.confirm(message)) {
+	                    return;
+	                }
+	                saveState(getInitialState());
+	            };
+	
+	            const loadDemoData = () => {
+	                const message = user
+	                    ? 'This will overwrite your cloud-synced data with DEMO data. Type DEMO to confirm:'
+	                    : 'This will replace your current data with DEMO data. Continue?';
+	                if (user) {
+	                    const typed = window.prompt(message);
+	                    if (typed !== 'DEMO') return;
+	                } else if (!window.confirm(message)) {
+	                    return;
+	                }
+	
+	                const todayStr = getLocalDateString();
+	                const demo = createDemoState(todayStr);
+	                saveState(demo);
+	            };
 
             // Toggle life area active state
             const toggleLifeArea = (areaKey) => {
@@ -1741,13 +1912,15 @@
                             />
                         )}
 
-                        {currentView === 'settings' && (
-                            <Settings
-                                exportData={exportData}
-                                importData={importData}
-                                user={user}
-                            />
-                        )}
+	                        {currentView === 'settings' && (
+	                            <Settings
+	                                exportData={exportData}
+	                                importData={importData}
+	                                user={user}
+	                                loadDemoData={loadDemoData}
+	                                clearAllData={clearAllData}
+	                            />
+	                        )}
                     </main>
                 </div>
             );
@@ -3800,7 +3973,7 @@
         // ==========================================
         // SETTINGS
         // ==========================================
-        function Settings({ exportData, importData, user }) {
+        function Settings({ exportData, importData, user, loadDemoData, clearAllData }) {
             const handleImport = (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -3876,6 +4049,36 @@
                             </div>
                         </div>
                     </div>
+	
+	                    <div className="glass rounded-2xl p-8 border border-slate-700/50">
+	                        <div className="flex items-center justify-between gap-4 flex-wrap">
+	                            <div className="text-left">
+	                                <h3 className="text-xl font-bold text-white">Demo / Reset</h3>
+	                                <p className="text-slate-400 text-sm mt-2 max-w-2xl">
+	                                    Load realistic demo data to quickly test flows, or clear all data to start fresh.
+	                                </p>
+	                                {user && (
+	                                    <p className="text-yellow-300/80 text-xs mt-2 font-mono">
+	                                        Cloud sync is enabled — these actions can overwrite your cloud data.
+	                                    </p>
+	                                )}
+	                            </div>
+	                            <div className="flex gap-3">
+	                                <button
+	                                    onClick={loadDemoData}
+	                                    className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 font-bold transition-all"
+	                                >
+	                                    Load Demo Data
+	                                </button>
+	                                <button
+	                                    onClick={clearAllData}
+	                                    className="px-5 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-200 border border-red-500/30 hover:border-red-500/50 font-bold transition-all"
+	                                >
+	                                    Clear All Data
+	                                </button>
+	                            </div>
+	                        </div>
+	                    </div>
 
                     <div className="glass rounded-2xl p-8 border border-slate-700/50 text-center">
                         <h3 className="text-xl font-bold text-white mb-4">About</h3>
