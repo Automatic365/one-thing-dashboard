@@ -11,15 +11,15 @@ Add structured reflection and planning features based on The ONE Thing Planner t
 - Phase 2 quarterly reflections
 - Phase 3 reminders + dashboard/progress UX enhancements
 - Phase 4 enhanced Progress calendar + day notes + obstacles tracker
+- Phase 5.4–5.5: storage tools + progress deep dive
 
 ### ▶️ Next
 - **5.1 Reflection History** ✅ shipped (monthly/quarterly browsing + completion overview)
 - **5.2 Release Hygiene & Safety** ✅ shipped (version stamp, export-first nudges, retry guidance)
 
 ### ⏳ Later
-- 5.5 deeper progress analytics (streaks, trends, richer day detail polish)
 - 5.6 obstacles workflow upgrades (timeline linking, weekly focus)
-- 5.3 code organization + 5.4 performance/scale (only when it hurts)
+- 5.3 code organization + remaining 5.4/5.5 polish (only when it hurts)
 
 ## Phase 0: Platform Stability & Release Hygiene (MOSTLY COMPLETED)
 
@@ -226,6 +226,10 @@ These items are foundational and help prevent regressions like data wipes/revert
 ### 5.4: Performance & Scale Considerations
 **Why prioritize**: Proactive monitoring prevents user complaints as data grows.
 
+#### Status
+- ✅ Storage usage indicator shipped in Settings
+- ✅ Archive utility shipped (daily history + day notes + time blocks older than cutoff)
+
 #### Features
 - **localStorage size monitoring**:
   - Show data usage in Settings (e.g., "Using 2.3 MB of 10 MB available")
@@ -248,6 +252,10 @@ These items are foundational and help prevent regressions like data wipes/revert
 
 ### 5.5: Progress Deep Dive Enhancements
 **Why prioritize**: Makes the Progress tab more insightful and motivating.
+
+#### Status
+- ✅ Per-area streaks shipped (current + best)
+- ✅ Trend sparkline shipped (selected scope + range)
 
 #### Features
 - **Per-area streaks**:
@@ -365,5 +373,5 @@ Based on architecture review (Jan 14, 2026), recommended implementation order:
 
 ---
 
-**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1–5.2 shipped. Next: Phase 5.5 or 5.4.
+**Status**: Phase 1–4 complete (Phase 0 mostly complete). Phase 5.1–5.5 shipped. Next: Phase 5.6 or 5.3.
 **Last Updated**: January 14, 2026
