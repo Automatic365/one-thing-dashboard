@@ -1093,11 +1093,21 @@
 	                            : areaKey === 'health'
 	                                ? (i === 0 ? '30 minute workout' : `Health focus #${i + 1}`)
 	                                : (i === 0 ? 'Send a thoughtful message' : `Relationship focus #${i + 1}`);
-	                    dailyHistory[date] = {
-	                        text,
-	                        completed,
-	                        updatedAt: new Date().toISOString()
-	                    };
+		                    dailyHistory[date] = {
+		                        text,
+		                        ...(i === 0 ? {
+		                            rightNow: {
+		                                text: areaKey === 'business'
+		                                    ? 'Write the next 3 steps for today’s task'
+		                                    : areaKey === 'health'
+		                                        ? 'Put shoes on and start warmup'
+		                                        : 'Draft the message (2 sentences)',
+		                                updatedAt: new Date().toISOString()
+		                            }
+		                        } : {}),
+		                        completed,
+		                        updatedAt: new Date().toISOString()
+		                    };
 	                }
 	                area.goals.dailyHistory = dailyHistory;
 	            });
@@ -1578,33 +1588,47 @@
             };
 
             // Update goal for a specific life area
-            const updateGoal = (areaKey, level, text, date = null) => {
-                const targetDate = date || getLocalDateString();
-                const area = state.lifeAreas[areaKey];
-                
-                let newGoals;
-                
-                if (level === 'daily') {
-                    // Update daily history for specific date
-                    const currentEntry = area.goals.dailyHistory?.[targetDate] || { completed: false };
-                    newGoals = {
-                        ...area.goals,
-                        dailyHistory: {
-                            ...area.goals.dailyHistory,
-                            [targetDate]: {
-                                ...currentEntry,
-                                text: text,
-                                updatedAt: new Date().toISOString()
-                            }
-                        }
-                    };
-                } else {
-                    // Standard update for other levels
-                    newGoals = {
-                        ...area.goals,
-                        [level]: { text, updatedAt: new Date().toISOString() }
-                    };
-                }
+	            const updateGoal = (areaKey, level, text, date = null) => {
+	                const targetDate = date || getLocalDateString();
+	                const area = state.lifeAreas[areaKey];
+	                
+	                let newGoals;
+	                
+	                if (level === 'daily' || level === 'rightNow') {
+	                    // Update daily history for specific date (daily + rightNow)
+	                    const currentEntry = area.goals.dailyHistory?.[targetDate] || { text: '', completed: false, updatedAt: null };
+	                    const nowIso = new Date().toISOString();
+	                    const nextEntry =
+	                        level === 'daily'
+	                            ? {
+	                                ...currentEntry,
+	                                text: text,
+	                                updatedAt: nowIso
+	                            }
+	                            : {
+	                                ...currentEntry,
+	                                text: (currentEntry && typeof currentEntry.text === 'string') ? currentEntry.text : '',
+	                                rightNow: {
+	                                    ...(currentEntry && typeof currentEntry.rightNow === 'object' ? currentEntry.rightNow : { text: '', updatedAt: null }),
+	                                    text: text,
+	                                    updatedAt: nowIso
+	                                }
+	                            };
+	
+	                    newGoals = {
+	                        ...area.goals,
+	                        dailyHistory: {
+	                            ...area.goals.dailyHistory,
+	                            [targetDate]: nextEntry
+	                        }
+	                    };
+	                } else {
+	                    // Standard update for other levels
+	                    newGoals = {
+	                        ...area.goals,
+	                        [level]: { text, updatedAt: new Date().toISOString() }
+	                    };
+	                }
 
                 const newState = {
                     ...state,
@@ -4440,6 +4464,136 @@
 	                </div>
 	            );
 	        }
+
+	        function RightNowEditor({ areaKey, dateStr, isToday, rightNowEntry, updateGoal, dailyText = '' }) {
+	            const [draft, setDraft] = React.useState(rightNowEntry && rightNowEntry.text ? rightNowEntry.text : '');
+	            const [saved, setSaved] = React.useState(false);
+	            const [saveStatus, setSaveStatus] = React.useState('idle'); // idle | pending | saved
+	            const [isDirty, setIsDirty] = React.useState(false);
+	            const isFocusedRef = React.useRef(false);
+	            const lastKeyRef = React.useRef(`${areaKey}:${dateStr}`);
+	            const autosaveTimerRef = React.useRef(null);
+	            const savedTimerRef = React.useRef(null);
+
+	            React.useEffect(() => {
+	                return () => {
+	                    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+	                    if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current);
+	                };
+	            }, []);
+
+	            React.useEffect(() => {
+	                const key = `${areaKey}:${dateStr}`;
+	                const keyChanged = lastKeyRef.current !== key;
+	                const nextText = rightNowEntry && typeof rightNowEntry.text === 'string' ? rightNowEntry.text : '';
+
+	                if (keyChanged) {
+	                    lastKeyRef.current = key;
+	                    setDraft(nextText || '');
+	                    setSaveStatus('idle');
+	                    setIsDirty(false);
+	                    return;
+	                }
+
+	                if (isFocusedRef.current || isDirty) return;
+	                setDraft(nextText || '');
+	            }, [areaKey, dateStr, rightNowEntry && rightNowEntry.text, isDirty]);
+
+	            const saveDraft = (nextText = draft) => {
+	                if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+	                updateGoal(areaKey, 'rightNow', nextText, dateStr);
+	                setSaveStatus('saved');
+	                setSaved(true);
+	                setIsDirty(false);
+	                if (savedTimerRef.current) window.clearTimeout(savedTimerRef.current);
+	                savedTimerRef.current = window.setTimeout(() => {
+	                    setSaved(false);
+	                    setSaveStatus('idle');
+	                }, 1100);
+	            };
+
+	            const scheduleAutosave = () => {
+	                if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+	                setSaveStatus('pending');
+	                autosaveTimerRef.current = window.setTimeout(() => saveDraft(), 650);
+	            };
+
+	            const applyText = (text) => {
+	                setDraft(text || '');
+	                setIsDirty(true);
+	                scheduleAutosave();
+	            };
+
+	            return (
+	                <div className="space-y-3">
+	                    <div className="flex flex-wrap items-center gap-2">
+	                        {dailyText && dailyText.trim() && (
+	                            <button
+	                                type="button"
+	                                onClick={() => applyText(dailyText)}
+	                                className="px-3 py-1.5 rounded-full text-xs font-bold border bg-slate-800/40 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all"
+	                                title="Copy today’s ONE Thing into Right Now"
+	                            >
+	                                Copy Today
+	                            </button>
+	                        )}
+	                        <button
+	                            type="button"
+	                            onClick={() => applyText('')}
+	                            className="px-3 py-1.5 rounded-full text-xs font-bold border bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600 transition-all"
+	                        >
+	                            Clear
+	                        </button>
+	                        {isToday && (
+	                            <span className="text-[11px] text-slate-500 ml-auto">
+	                                Next 5 minutes focus
+	                            </span>
+	                        )}
+	                    </div>
+
+	                    <input
+	                        value={draft}
+	                        onFocus={() => { isFocusedRef.current = true; }}
+	                        onKeyDown={(e) => {
+	                            if (e.key === 'Enter') {
+	                                e.preventDefault();
+	                                saveDraft();
+	                                return;
+	                            }
+	                            if (e.key === 'Escape') {
+	                                e.preventDefault();
+	                                setDraft((rightNowEntry && rightNowEntry.text) ? rightNowEntry.text : '');
+	                                setIsDirty(false);
+	                                setSaveStatus('idle');
+	                                return;
+	                            }
+	                        }}
+	                        onChange={(e) => {
+	                            setDraft(e.target.value);
+	                            setIsDirty(true);
+	                            scheduleAutosave();
+	                        }}
+	                        onBlur={() => {
+	                            isFocusedRef.current = false;
+	                            saveDraft();
+	                        }}
+	                        placeholder={`What's the ONE Thing you can do ${isToday ? 'right now (next 5 minutes)' : 'in the next 5 minutes'}?`}
+	                        className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40 transition-all text-base leading-relaxed shadow-inner"
+	                    />
+
+	                    <div className="flex items-center justify-between gap-3 text-xs">
+	                        <div className="text-slate-500">
+	                            <span className="hidden sm:inline">Enter saves</span>
+	                            <span className="hidden sm:inline"> · </span>
+	                            <span className="hidden sm:inline">Esc reverts</span>
+	                        </div>
+	                        <div className="text-slate-500">
+	                            {saveStatus === 'pending' ? 'Saving…' : saved ? 'Saved' : ''}
+	                        </div>
+	                    </div>
+	                </div>
+	            );
+	        }
 	
 	        function Dashboard({ lifeAreas, activeAreas, updateGoal, completeDaily, quote, rotateQuote, toggleLifeArea }) {
             // Helper to get local date string YYYY-MM-DD
@@ -4577,6 +4731,9 @@
                                 
                                 // Get entry for selected date from dailyHistory
                                 const dailyEntry = area.goals.dailyHistory?.[selectedDate] || { text: '', completed: false };
+                                const rightNowEntry = dailyEntry && typeof dailyEntry.rightNow === 'object'
+                                    ? dailyEntry.rightNow
+                                    : { text: '', updatedAt: null };
                                 const isCompleted = dailyEntry.completed;
 
                                 return (
@@ -4637,11 +4794,11 @@
                                                     </span>
                                                 </div>
 
-		                                                <DailyOneThingEditor
-		                                                    areaKey={areaKey}
-		                                                    dateStr={selectedDate}
-		                                                    isToday={isToday}
-		                                                    dailyEntry={dailyEntry}
+			                                                <DailyOneThingEditor
+			                                                    areaKey={areaKey}
+			                                                    dateStr={selectedDate}
+			                                                    isToday={isToday}
+			                                                    dailyEntry={dailyEntry}
 		                                                    suggestions={[
 		                                                        (() => {
 		                                                            const idx = area.goals && typeof area.goals.weeklyOneThingIndex === 'number' ? area.goals.weeklyOneThingIndex : 0;
@@ -4666,13 +4823,32 @@
 		                                                            return { label: 'Copy Yesterday', text: t || '' };
 		                                                        })()
 		                                                    ]}
-		                                                    updateGoal={updateGoal}
-		                                                    completeDaily={completeDaily}
-		                                                />
-	                                            </div>
-	                                        </div>
-	                                    </div>
-                                );
+			                                                    updateGoal={updateGoal}
+			                                                    completeDaily={completeDaily}
+			                                                />
+
+	                                                <div className="mt-6 pt-6 border-t border-slate-700/50">
+	                                                    <div className="flex items-center justify-between mb-4">
+	                                                        <span className="text-xs font-bold text-fuchsia-400 uppercase tracking-widest">
+	                                                            Right Now
+	                                                        </span>
+	                                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+	                                                            Next 5 minutes
+	                                                        </span>
+	                                                    </div>
+	                                                    <RightNowEditor
+	                                                        areaKey={areaKey}
+	                                                        dateStr={selectedDate}
+	                                                        isToday={isToday}
+	                                                        rightNowEntry={rightNowEntry}
+	                                                        dailyText={dailyEntry && typeof dailyEntry.text === 'string' ? dailyEntry.text : ''}
+	                                                        updateGoal={updateGoal}
+	                                                    />
+	                                                </div>
+		                                            </div>
+		                                        </div>
+		                                    </div>
+	                                );
                             })}
                         </div>
                     )}
