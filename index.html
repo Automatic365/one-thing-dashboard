@@ -585,7 +585,7 @@
             version: 7, // Track data version for migrations (v7 = daily history)
             lifeAreas: Object.keys(LIFE_AREAS).reduce((acc, key) => {
                 acc[key] = {
-                    active: false,
+                    active: key === 'business', // Default Business to active to prevent lockout
                     goals: createEmptyGoals(),
                     completions: [], // Deprecated in v7, kept for safety during migration
                     reviews: {
