@@ -1587,7 +1587,7 @@
                 saveState(newState);
             };
 
-            // Update goal for a specific life area
+	            // Update goal for a specific life area
 	            const updateGoal = (areaKey, level, text, date = null) => {
 	                const targetDate = date || getLocalDateString();
 	                const area = state.lifeAreas[areaKey];
@@ -1827,6 +1827,55 @@
                     }
 	                };
 	                saveState(newState);
+	            };
+
+	            const setDailyGoalsForDate = (dateStr, updatesByArea = {}) => {
+	                if (!dateStr) return;
+	                const nowIso = new Date().toISOString();
+	                const nextLifeAreas = { ...(state.lifeAreas || {}) };
+	                let changed = false;
+
+	                Object.keys(updatesByArea || {}).forEach((areaKey) => {
+	                    const existingArea = nextLifeAreas[areaKey];
+	                    if (!existingArea) return;
+
+	                    const rawText = updatesByArea[areaKey];
+	                    const nextText = (rawText === null || rawText === undefined) ? '' : String(rawText);
+	                    const trimmed = nextText.trim();
+
+	                    const goals = existingArea.goals || createEmptyGoals();
+	                    const dailyHistory = goals.dailyHistory ? { ...goals.dailyHistory } : {};
+	                    const existingEntry = dailyHistory[dateStr];
+
+	                    // Avoid creating empty entries that weren’t already present.
+	                    if ((!existingEntry || typeof existingEntry !== 'object') && !trimmed) return;
+
+	                    const baseEntry = (existingEntry && typeof existingEntry === 'object')
+	                        ? existingEntry
+	                        : { text: '', completed: false, updatedAt: null };
+
+	                    dailyHistory[dateStr] = {
+	                        ...baseEntry,
+	                        text: nextText,
+	                        updatedAt: nowIso
+	                    };
+
+	                    nextLifeAreas[areaKey] = {
+	                        ...existingArea,
+	                        active: Boolean(existingArea.active) || Boolean(trimmed),
+	                        goals: {
+	                            ...goals,
+	                            dailyHistory
+	                        }
+	                    };
+	                    changed = true;
+	                });
+
+	                if (!changed) return;
+	                saveState({
+	                    ...state,
+	                    lifeAreas: nextLifeAreas
+	                });
 	            };
 
 	            const setDayNote = (dateStr, text) => {
@@ -2416,14 +2465,15 @@
                                     />
                                 )}
 
-	                                {currentView === 'progress' && (
-	                                    <ProgressTracker
-	                                        lifeAreas={state.lifeAreas}
-	                                        activeAreas={activeAreas}
-	                                        dayNotes={state.dayNotes}
-	                                        setDayNote={setDayNote}
-	                                    />
-	                                )}
+		                        {currentView === 'progress' && (
+		                            <ProgressTracker
+		                                lifeAreas={state.lifeAreas}
+		                                activeAreas={activeAreas}
+		                                dayNotes={state.dayNotes}
+		                                setDayNote={setDayNote}
+		                                setDailyGoalsForDate={setDailyGoalsForDate}
+		                            />
+		                        )}
 
 	                                {currentView === 'reflect' && (
 	                                    <Reflection
@@ -5671,18 +5721,21 @@
 	        // ==========================================
 	        // PROGRESS TRACKER
 	        // ==========================================
-	        function ProgressTracker({ lifeAreas, activeAreas, dayNotes = {}, setDayNote }) {
-	            const [selectedAreaScope, setSelectedAreaScope] = React.useState('all'); // 'all' or areaKey
-	            const [rangeDays, setRangeDays] = React.useState(30); // 7 / 30 / 90
-	            const [viewMode, setViewMode] = React.useState('month'); // month | range
+	        function ProgressTracker({ lifeAreas, activeAreas, dayNotes = {}, setDayNote, setDailyGoalsForDate }) {
+		            const [selectedAreaScope, setSelectedAreaScope] = React.useState('all'); // 'all' or areaKey
+		            const [rangeDays, setRangeDays] = React.useState(30); // 7 / 30 / 90
+		            const [viewMode, setViewMode] = React.useState('month'); // month | range
 	            const [monthCursor, setMonthCursor] = React.useState(() => {
 	                const d = new Date();
 	                const y = d.getFullYear();
 	                const m = String(d.getMonth() + 1).padStart(2, '0');
 	                return `${y}-${m}`;
 	            });
-	            const [openDay, setOpenDay] = React.useState(null);
-	            const [noteDraft, setNoteDraft] = React.useState('');
+		            const [openDay, setOpenDay] = React.useState(null);
+		            const [noteDraft, setNoteDraft] = React.useState('');
+		            const [dailyGoalAreasDraft, setDailyGoalAreasDraft] = React.useState([]); // list of areaKeys shown in modal
+		            const [dailyGoalTextDrafts, setDailyGoalTextDrafts] = React.useState({}); // areaKey -> text
+		            const [dailyGoalsSaved, setDailyGoalsSaved] = React.useState(false);
 
 	            // Helper to get local date string YYYY-MM-DD
 	            const getLocalDateString = (dateObj = new Date()) => {
@@ -5690,11 +5743,40 @@
 	                return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
 	            };
 
-	            React.useEffect(() => {
-	                if (!openDay) return;
-	                const existing = dayNotes && dayNotes[openDay] ? dayNotes[openDay].text : '';
-	                setNoteDraft(existing || '');
-	            }, [openDay, dayNotes]);
+		            React.useEffect(() => {
+		                if (!openDay) return;
+		                const existing = dayNotes && dayNotes[openDay] ? dayNotes[openDay].text : '';
+		                setNoteDraft(existing || '');
+		            }, [openDay, dayNotes]);
+
+		            React.useEffect(() => {
+		                if (!openDay) return;
+		                const existingGoalsAreas = Object.keys(LIFE_AREAS).filter((areaKey) => {
+		                    const t = lifeAreas && lifeAreas[areaKey] && lifeAreas[areaKey].goals && lifeAreas[areaKey].goals.dailyHistory && lifeAreas[areaKey].goals.dailyHistory[openDay]
+		                        ? (lifeAreas[areaKey].goals.dailyHistory[openDay].text || '')
+		                        : '';
+		                    return String(t || '').trim().length > 0;
+		                });
+
+		                const baseAreas = selectedAreaScope === 'all'
+		                    ? (Array.isArray(activeAreas) ? activeAreas.slice() : [])
+		                    : [selectedAreaScope];
+
+		                const merged = Array.from(new Set([...(baseAreas || []), ...(existingGoalsAreas || [])]))
+		                    .filter((k) => Boolean(LIFE_AREAS[k]));
+
+		                const drafts = {};
+		                merged.forEach((areaKey) => {
+		                    const t = lifeAreas && lifeAreas[areaKey] && lifeAreas[areaKey].goals && lifeAreas[areaKey].goals.dailyHistory && lifeAreas[areaKey].goals.dailyHistory[openDay]
+		                        ? (lifeAreas[areaKey].goals.dailyHistory[openDay].text || '')
+		                        : '';
+		                    drafts[areaKey] = String(t || '');
+		                });
+
+		                setDailyGoalAreasDraft(merged);
+		                setDailyGoalTextDrafts(drafts);
+		                setDailyGoalsSaved(false);
+		            }, [openDay, selectedAreaScope, activeAreas, lifeAreas]);
 
 	            React.useEffect(() => {
 	                if (selectedAreaScope === 'all') return;
@@ -6139,33 +6221,63 @@
 
 	                                return (
 	                                    <div className="grid grid-cols-7 gap-2">
-	                                        {cells.map((date, idx) => {
-	                                            if (!date) return <div key={`blank-${idx}`} className="aspect-square rounded-lg bg-slate-800/20 border border-slate-800/30" />;
-	                                            const isToday = date === todayStr;
-	                                            const isCompleted = Boolean(monthCompletionMap[date]);
-	                                            const note = dayNotes && dayNotes[date] && dayNotes[date].text ? dayNotes[date].text : '';
-	                                            const count = monthCompletionByDate[date] ? monthCompletionByDate[date].length : 0;
-	                                            return (
-	                                                <button
-	                                                    key={date}
-	                                                    type="button"
-	                                                    onClick={() => setOpenDay(date)}
-	                                                    className={`aspect-square rounded-lg border text-left p-2 flex flex-col justify-between transition-all ${
-	                                                        isCompleted
-	                                                            ? 'bg-emerald-500/15 border-emerald-500/30 hover:bg-emerald-500/20'
-	                                                            : isToday
-	                                                                ? 'bg-slate-800 border-indigo-500/50 hover:border-indigo-500'
-	                                                                : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800 hover:border-slate-600'
-	                                                    }`}
-	                                                    title={`${date}\n${count} completion${count === 1 ? '' : 's'}${note ? `\nNote: ${String(note).slice(0, 80)}` : ''}`}
-	                                                >
-	                                                    <div className={`text-xs font-bold ${isToday ? 'text-indigo-300' : 'text-slate-200'}`}>
-	                                                        {Number(date.slice(-2))}
-	                                                    </div>
-	                                                    <div className="flex items-center justify-between gap-2">
-	                                                        <div className="flex items-center gap-1">
-	                                                            {count > 0 && (
-	                                                                <>
+		                                        {cells.map((date, idx) => {
+		                                            if (!date) return <div key={`blank-${idx}`} className="aspect-square rounded-lg bg-slate-800/20 border border-slate-800/30" />;
+		                                            const isToday = date === todayStr;
+		                                            const isCompleted = Boolean(monthCompletionMap[date]);
+		                                            const note = dayNotes && dayNotes[date] && dayNotes[date].text ? dayNotes[date].text : '';
+		                                            const count = monthCompletionByDate[date] ? monthCompletionByDate[date].length : 0;
+		                                            const goalsForDay = Object.keys(LIFE_AREAS)
+		                                                .filter((areaKey) => {
+		                                                    if (selectedAreaScope !== 'all' && areaKey !== selectedAreaScope) return false;
+		                                                    const entry = lifeAreas && lifeAreas[areaKey] && lifeAreas[areaKey].goals && lifeAreas[areaKey].goals.dailyHistory
+		                                                        ? lifeAreas[areaKey].goals.dailyHistory[date]
+		                                                        : null;
+		                                                    const t = entry && typeof entry.text === 'string' ? entry.text : '';
+		                                                    return String(t || '').trim().length > 0;
+		                                                })
+		                                                .map((areaKey) => {
+		                                                    const entry = lifeAreas[areaKey].goals.dailyHistory[date];
+		                                                    return { areaKey, text: entry.text };
+		                                                });
+		                                            const goalsPreview = goalsForDay.slice(0, 2);
+		                                            const extraGoalsCount = goalsForDay.length > 2 ? (goalsForDay.length - 2) : 0;
+		                                            return (
+		                                                <button
+		                                                    key={date}
+		                                                    type="button"
+		                                                    onClick={() => setOpenDay(date)}
+		                                                    className={`aspect-square rounded-lg border text-left p-2 flex flex-col transition-all ${
+		                                                        isCompleted
+		                                                            ? 'bg-emerald-500/15 border-emerald-500/30 hover:bg-emerald-500/20'
+		                                                            : isToday
+		                                                                ? 'bg-slate-800 border-indigo-500/50 hover:border-indigo-500'
+		                                                                : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800 hover:border-slate-600'
+		                                                    }`}
+		                                                    title={`${date}\n${count} completion${count === 1 ? '' : 's'}${note ? `\nNote: ${String(note).slice(0, 80)}` : ''}`}
+		                                                >
+		                                                    <div className={`text-xs font-bold ${isToday ? 'text-indigo-300' : 'text-slate-200'}`}>
+		                                                        {Number(date.slice(-2))}
+		                                                    </div>
+		                                                    <div className="mt-1 flex-1 min-h-0 overflow-hidden">
+		                                                        {goalsPreview.length > 0 && (
+		                                                            <div className="space-y-1">
+		                                                                {goalsPreview.map((g) => (
+		                                                                    <div key={`${date}:goal:${g.areaKey}`} className="flex items-start gap-1.5 text-[10px] leading-snug text-slate-200/90">
+		                                                                        <span className="flex-shrink-0">{LIFE_AREAS[g.areaKey]?.icon || '•'}</span>
+		                                                                        <span className="line-clamp-2">{g.text}</span>
+		                                                                    </div>
+		                                                                ))}
+		                                                                {extraGoalsCount > 0 && (
+		                                                                    <div className="text-[10px] text-slate-500 font-mono">+{extraGoalsCount} more</div>
+		                                                                )}
+		                                                            </div>
+		                                                        )}
+		                                                    </div>
+		                                                    <div className="flex items-center justify-between gap-2">
+		                                                        <div className="flex items-center gap-1">
+		                                                            {count > 0 && (
+		                                                                <>
 	                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
 	                                                                    {count > 1 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70"></span>}
 	                                                                    {count > 2 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50"></span>}
@@ -6176,11 +6288,11 @@
 	                                                            <span className="text-[10px] text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 rounded">
 	                                                                Note
 	                                                            </span>
-	                                                        )}
-	                                                    </div>
-	                                                </button>
-	                                            );
-	                                        })}
+		                                                        )}
+		                                                    </div>
+		                                                </button>
+		                                            );
+		                                        })}
 	                                    </div>
 	                                );
 	                            })()}
@@ -6189,7 +6301,7 @@
 
 	                    {openDay && (
 	                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setOpenDay(null)}>
-	                            <div className="w-full max-w-2xl glass rounded-2xl border border-slate-700/60 p-6" onClick={(e) => e.stopPropagation()}>
+	                            <div className="w-full max-w-4xl glass rounded-2xl border border-slate-700/60 p-6" onClick={(e) => e.stopPropagation()}>
 	                                <div className="flex items-start justify-between gap-4">
 	                                    <div>
 	                                        <div className="text-xl font-bold text-white">
@@ -6217,7 +6329,7 @@
 	                                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
 	                                    <div className="space-y-3">
 	                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Completions</div>
-	                                        <div className="space-y-2">
+	                                        <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
 	                                            {(() => {
 	                                                const list = monthCompletionByDate[openDay] || [];
 	                                                if (!list.length) {
@@ -6240,38 +6352,129 @@
 	                                        </div>
 	                                    </div>
 
-	                                    <div className="space-y-3">
-	                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Note</div>
-	                                        <textarea
-	                                            value={noteDraft}
-	                                            onChange={(e) => setNoteDraft(e.target.value)}
-	                                            placeholder="Add context, wins, lessons, or blockers for this day..."
-	                                            className="w-full min-h-[180px] px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all resize-none"
-	                                        />
-	                                        <div className="flex items-center gap-2">
-	                                            <button
-	                                                type="button"
-	                                                onClick={() => {
-	                                                    if (typeof setDayNote === 'function') setDayNote(openDay, noteDraft);
-	                                                    setOpenDay(null);
-	                                                }}
-	                                                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold border border-indigo-500/30"
-	                                            >
-	                                                Save Note
-	                                            </button>
-	                                            <button
-	                                                type="button"
-	                                                onClick={() => {
-	                                                    setNoteDraft('');
-	                                                    if (typeof setDayNote === 'function') setDayNote(openDay, '');
-	                                                }}
-	                                                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
-	                                            >
-	                                                Clear
-	                                            </button>
+	                                    <div className="space-y-6">
+	                                        <div className="space-y-3">
+	                                            <div className="flex items-center justify-between">
+	                                                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Daily Goals</div>
+	                                                {dailyGoalsSaved && (
+	                                                    <div className="text-[11px] font-bold text-emerald-300">Saved</div>
+	                                                )}
+	                                            </div>
+	                                            <div className="space-y-3 max-h-[260px] overflow-auto pr-1">
+	                                                {dailyGoalAreasDraft.length === 0 && (
+	                                                    <div className="rounded-xl border border-slate-700/60 bg-slate-800/20 p-4 text-sm text-slate-500">
+	                                                        Add a daily goal for one or more life areas.
+	                                                    </div>
+	                                                )}
+	                                                {dailyGoalAreasDraft.map((areaKey) => {
+	                                                    const info = LIFE_AREAS[areaKey];
+	                                                    return (
+	                                                        <div key={`${openDay}:dg:${areaKey}`} className="rounded-xl border border-slate-700/60 bg-slate-800/20 p-3">
+	                                                            <div className="flex items-center justify-between gap-3 mb-2">
+	                                                                <div className="flex items-center gap-2">
+	                                                                    <span className="text-lg">{info?.icon || '•'}</span>
+	                                                                    <div className="text-sm font-bold text-slate-200">{info?.name || areaKey}</div>
+	                                                                </div>
+	                                                                <button
+	                                                                    type="button"
+	                                                                    onClick={() => {
+	                                                                        setDailyGoalTextDrafts((prev) => ({ ...prev, [areaKey]: '' }));
+	                                                                    }}
+	                                                                    className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs"
+	                                                                >
+	                                                                    Clear
+	                                                                </button>
+	                                                            </div>
+	                                                            <textarea
+	                                                                value={dailyGoalTextDrafts[areaKey] || ''}
+	                                                                onChange={(e) => {
+	                                                                    const v = e.target.value;
+	                                                                    setDailyGoalTextDrafts((prev) => ({ ...prev, [areaKey]: v }));
+	                                                                }}
+	                                                                rows="2"
+	                                                                placeholder={`Daily ONE Thing for ${info?.name || areaKey}...`}
+	                                                                className="w-full px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all resize-none text-sm"
+	                                                            />
+	                                                        </div>
+	                                                    );
+	                                                })}
+	                                            </div>
+
+	                                            <div className="flex flex-wrap items-center gap-2">
+	                                                <select
+	                                                    value=""
+	                                                    onChange={(e) => {
+	                                                        const next = e.target.value;
+	                                                        if (!next) return;
+	                                                        setDailyGoalAreasDraft((prev) => Array.from(new Set([...(prev || []), next])));
+	                                                        setDailyGoalTextDrafts((prev) => ({ ...prev, [next]: prev && prev[next] ? prev[next] : '' }));
+	                                                    }}
+	                                                    className="px-3 py-2 bg-slate-900/50 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+	                                                >
+	                                                    <option value="">+ Add life area…</option>
+	                                                    {Object.keys(LIFE_AREAS)
+	                                                        .filter((k) => !dailyGoalAreasDraft.includes(k))
+	                                                        .map((k) => (
+	                                                            <option key={`add-${k}`} value={k}>
+	                                                                {LIFE_AREAS[k].icon} {LIFE_AREAS[k].name}
+	                                                            </option>
+	                                                        ))}
+	                                                </select>
+	                                                <button
+	                                                    type="button"
+	                                                    onClick={() => {
+	                                                        if (typeof setDailyGoalsForDate !== 'function') return;
+	                                                        const updates = {};
+	                                                        dailyGoalAreasDraft.forEach((k) => {
+	                                                            updates[k] = dailyGoalTextDrafts[k] || '';
+	                                                        });
+	                                                        setDailyGoalsForDate(openDay, updates);
+	                                                        setDailyGoalsSaved(true);
+	                                                        window.setTimeout(() => setDailyGoalsSaved(false), 1200);
+	                                                    }}
+	                                                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold border border-indigo-500/30"
+	                                                >
+	                                                    Save Daily Goals
+	                                                </button>
+	                                            </div>
+	                                            <div className="text-xs text-slate-500">
+	                                                Saving a daily goal will activate that life area automatically.
+	                                            </div>
 	                                        </div>
-	                                        <div className="text-xs text-slate-500">
-	                                            Notes are stored in your data and will sync in cloud mode.
+
+	                                        <div className="space-y-3">
+	                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Note</div>
+	                                            <textarea
+	                                                value={noteDraft}
+	                                                onChange={(e) => setNoteDraft(e.target.value)}
+	                                                placeholder="Add context, wins, lessons, or blockers for this day..."
+	                                                className="w-full min-h-[140px] px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all resize-none"
+	                                            />
+	                                            <div className="flex items-center gap-2">
+	                                                <button
+	                                                    type="button"
+	                                                    onClick={() => {
+	                                                        if (typeof setDayNote === 'function') setDayNote(openDay, noteDraft);
+	                                                        setOpenDay(null);
+	                                                    }}
+	                                                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+	                                                >
+	                                                    Save Note
+	                                                </button>
+	                                                <button
+	                                                    type="button"
+	                                                    onClick={() => {
+	                                                        setNoteDraft('');
+	                                                        if (typeof setDayNote === 'function') setDayNote(openDay, '');
+	                                                    }}
+	                                                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+	                                                >
+	                                                    Clear
+	                                                </button>
+	                                            </div>
+	                                            <div className="text-xs text-slate-500">
+	                                                Notes are stored in your data and will sync in cloud mode.
+	                                            </div>
 	                                        </div>
 	                                    </div>
 	                                </div>
