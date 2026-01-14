@@ -670,13 +670,15 @@
                     return repairedState;
                 }
                 
-                return oldData;
-            }
-
-            // Version 6 → 7: Convert daily goal + completions to dailyHistory
-            if (oldData.version === 6) {
-                const newData = { ...oldData, version: 7 };
-                const today = new Date().toISOString().split('T')[0];
+	                // Normalize version type (Firestore can store it as a string).
+	                if (oldData.version !== 7) return { ...oldData, version: 7 };
+	                return oldData;
+	            }
+	
+	            // Version 6 → 7: Convert daily goal + completions to dailyHistory
+	            if (version === 6) {
+	                const newData = { ...oldData, version: 7 };
+	                const today = new Date().toISOString().split('T')[0];
 
                 Object.keys(newData.lifeAreas).forEach(areaKey => {
                     const area = newData.lifeAreas[areaKey];
@@ -713,13 +715,13 @@
                     // Assign new structure
                     area.goals.dailyHistory = dailyHistory;
                 });
-                return newData;
-            }
-
-            // Version 5 → 6: Add quarterly reviews array
-            if (oldData.version === 5) {
-                const v6Data = { ...oldData, version: 6 };
-                Object.keys(v6Data.lifeAreas).forEach(areaKey => {
+	                return newData;
+	            }
+	
+	            // Version 5 → 6: Add quarterly reviews array
+	            if (version === 5) {
+	                const v6Data = { ...oldData, version: 6 };
+	                Object.keys(v6Data.lifeAreas).forEach(areaKey => {
                     if (!v6Data.lifeAreas[areaKey].reviews) {
                         v6Data.lifeAreas[areaKey].reviews = { monthly: [], quarterly: [] };
                     } else if (!v6Data.lifeAreas[areaKey].reviews.quarterly) {
@@ -727,13 +729,13 @@
                     }
                 });
                 // Continue to v7
-                return migrateData(v6Data);
-            }
-
-            // Version 4 → 5: Convert to 5 goals per timeframe with selection
-            if (oldData.version === 4) {
-                const v5Data = { ...oldData, version: 5 };
-                Object.keys(v5Data.lifeAreas).forEach(areaKey => {
+	                return migrateData(v6Data);
+	            }
+	
+	            // Version 4 → 5: Convert to 5 goals per timeframe with selection
+	            if (version === 4) {
+	                const v5Data = { ...oldData, version: 5 };
+	                Object.keys(v5Data.lifeAreas).forEach(areaKey => {
                     const area = v5Data.lifeAreas[areaKey];
                     // SAFETY: Ensure goals object exists
                     if (!area.goals) {
@@ -763,11 +765,12 @@
                         { text: '', updatedAt: null }
                     ];
 
-                    // Convert weeklyGoals from 4 to 5 goals (add empty 5th slot)
-                    const weeklyGoals = [
-                        ...(goals.weeklyGoals || []),
-                        { text: '', updatedAt: null }
-                    ];
+	                    // Convert weeklyGoals to exactly 5 goals (pad/truncate; idempotent)
+	                    const weeklyGoals = Array.isArray(goals.weeklyGoals) ? [...goals.weeklyGoals] : [];
+	                    while (weeklyGoals.length < 5) {
+	                        weeklyGoals.push({ text: '', updatedAt: null });
+	                    }
+	                    if (weeklyGoals.length > 5) weeklyGoals.length = 5;
 
                     // Update goals structure
                     area.goals = {
@@ -806,21 +809,21 @@
                 return newGoals;
             };
 
-            // Version 3 → 5: Convert weekly goals to 4-1-1 then to 5-goal system
-            if (oldData.version === 3) {
-                const v4Data = { ...oldData, version: 4 };
-                Object.keys(v4Data.lifeAreas).forEach(areaKey => {
+	            // Version 3 → 5: Convert weekly goals to 4-1-1 then to 5-goal system
+	            if (version === 3) {
+	                const v4Data = { ...oldData, version: 4 };
+	                Object.keys(v4Data.lifeAreas).forEach(areaKey => {
                     v4Data.lifeAreas[areaKey].goals = convertWeeklyTo411(v4Data.lifeAreas[areaKey].goals);
                 });
                 // Now convert v4 to v5
                 return migrateData(v4Data);
             }
 
-            // Version 2 → 5: Add time blocking fields + convert to 4-1-1 then to 5-goal system
-            if (oldData.version === 2) {
-                const v4Data = {
-                    ...oldData,
-                    version: 4,
+	            // Version 2 → 5: Add time blocking fields + convert to 4-1-1 then to 5-goal system
+	            if (version === 2) {
+	                const v4Data = {
+	                    ...oldData,
+	                    version: 4,
                     lastWeeklyReview: null,
                     lastAnnualReview: null
                 };
@@ -831,9 +834,9 @@
                 return migrateData(v4Data);
             }
 
-            // Version 1 → 5: Full migration (single track to multi-track + 4-1-1 + 5-goal system)
-            // Note: getInitialState returns V7, but we are populating it with legacy V1/V4 data below.
-            const newState = getInitialState();
+	            // Version 1 → 5: Full migration (single track to multi-track + 4-1-1 + 5-goal system)
+	            // Note: getInitialState returns V7, but we are populating it with legacy V1/V4 data below.
+	            const newState = getInitialState();
 
             // If old data has goals, migrate them to "business" area
             if (oldData.goals) {
@@ -1508,12 +1511,14 @@
 
             const today = new Date().toISOString().split('T')[0];
 
-            // Get active life areas
-            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
+	            // Get active life areas
+	            const activeAreas = Object.keys(LIFE_AREAS).filter(key => state.lifeAreas[key].active);
+	
+	            const showDebug = typeof window !== 'undefined' && window.location && window.location.search.includes('debug=1');
 
-            if (loading) {
-                return (
-                    <div className="min-h-screen flex items-center justify-center">
+	            if (loading) {
+	                return (
+	                    <div className="min-h-screen flex items-center justify-center">
                         <div className="text-center">
                             <div className="spinner inline-block w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full shadow-glow"></div>
                             <p className="mt-4 text-slate-400 font-medium">Loading your legacy...</p>
