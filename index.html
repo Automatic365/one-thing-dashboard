@@ -815,6 +815,13 @@
             const [syncing, setSyncing] = useState(false);
             const [selectedLifeArea, setSelectedLifeArea] = useState('business'); // Default to business
 
+            // Helper to get local date string YYYY-MM-DD
+            const getLocalDateString = () => {
+                const d = new Date();
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
             // Auth state listener
             useEffect(() => {
                 if (!isFirebaseConfigured || !auth) {
@@ -937,14 +944,153 @@
                 saveState(newState);
             };
 
-            // ... (other update functions remain the same) ...
+            // Update annual goal at specific index
+            const updateAnnualGoal = (areaKey, index, text) => {
+                const goals = state.lifeAreas[areaKey].goals;
+                const updatedAnnualGoals = [...goals.annualGoals];
+                updatedAnnualGoals[index] = { text, updatedAt: new Date().toISOString() };
 
-            // Mark daily goal as complete for a specific life area
-            // Helper to get local date string YYYY-MM-DD
-            const getLocalDateString = () => {
-                const d = new Date();
-                const offset = d.getTimezoneOffset() * 60000;
-                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...goals,
+                                annualGoals: updatedAnnualGoals
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Set which of the 5 annual goals is THE annual ONE Thing
+            const setAnnualOneThing = (areaKey, index) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                annualOneThingIndex: index
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Update monthly goal at specific index
+            const updateMonthlyGoal = (areaKey, index, text) => {
+                const goals = state.lifeAreas[areaKey].goals;
+                const updatedMonthlyGoals = [...goals.monthlyGoals];
+                updatedMonthlyGoals[index] = { text, updatedAt: new Date().toISOString() };
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...goals,
+                                monthlyGoals: updatedMonthlyGoals
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Set which of the 5 monthly goals is THE monthly ONE Thing
+            const setMonthlyOneThing = (areaKey, index) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                monthlyOneThingIndex: index
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Update weekly goal at specific index
+            const updateWeeklyGoal = (areaKey, index, text) => {
+                const goals = state.lifeAreas[areaKey].goals;
+                const updatedWeeklyGoals = [...goals.weeklyGoals];
+                updatedWeeklyGoals[index] = { text, updatedAt: new Date().toISOString() };
+
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...goals,
+                                weeklyGoals: updatedWeeklyGoals
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Set which of the 5 weekly goals is THE weekly ONE Thing
+            const setWeeklyOneThing = (areaKey, index) => {
+                const newState = {
+                    ...state,
+                    lifeAreas: {
+                        ...state.lifeAreas,
+                        [areaKey]: {
+                            ...state.lifeAreas[areaKey],
+                            goals: {
+                                ...state.lifeAreas[areaKey].goals,
+                                weeklyOneThingIndex: index
+                            }
+                        }
+                    }
+                };
+                saveState(newState);
+            };
+
+            // Add time block
+            const addTimeBlock = (block) => {
+                const newState = {
+                    ...state,
+                    timeBlocks: [...state.timeBlocks, { ...block, id: Date.now() }]
+                };
+                saveState(newState);
+            };
+
+            // Update time block
+            const updateTimeBlock = (id, updates) => {
+                const newState = {
+                    ...state,
+                    timeBlocks: state.timeBlocks.map(block =>
+                        block.id === id ? { ...block, ...updates } : block
+                    )
+                };
+                saveState(newState);
+            };
+
+            // Delete time block
+            const deleteTimeBlock = (id) => {
+                const newState = {
+                    ...state,
+                    timeBlocks: state.timeBlocks.filter(block => block.id !== id)
+                };
+                saveState(newState);
             };
 
             const completeDaily = (areaKey, date = null) => {
@@ -2062,13 +2208,22 @@
             const today = getLocalDateString();
 
             const changeDate = (days) => {
-                const date = new Date(selectedDate);
-                date.setDate(date.getDate() + days);
-                setSelectedDate(getLocalDateString(date));
+                // Use UTC date operations to avoid timezone shifting bugs
+                const [y, m, d] = selectedDate.split('-').map(Number);
+                const date = new Date(Date.UTC(y, m - 1, d)); // Month is 0-indexed
+                
+                date.setUTCDate(date.getUTCDate() + days);
+                
+                const newY = date.getUTCFullYear();
+                const newM = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const newD = String(date.getUTCDate()).padStart(2, '0');
+                
+                setSelectedDate(`${newY}-${newM}-${newD}`);
             };
 
             const formatDateDisplay = (dateStr) => {
-                const date = new Date(dateStr + 'T00:00:00'); // Ensure local time
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const date = new Date(y, m - 1, d); 
                 return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             };
 
@@ -2432,6 +2587,10 @@
             const goals = lifeAreas[selectedLifeArea].goals;
             const currentArea = LIFE_AREAS[selectedLifeArea];
 
+            // Get today's date for daily goal access
+            const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const todayEntry = goals.dailyHistory?.[today] || { text: '', updatedAt: null };
+
             return (
                 <div className="space-y-8 fade-in">
                     {/* Life Area Selector */}
@@ -2740,7 +2899,7 @@
                             <div className="relative ml-2">
                                 <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl blur opacity-10 group-hover:opacity-30 transition duration-500"></div>
                                 <textarea
-                                    value={goals.daily.text}
+                                    value={todayEntry.text}
                                     onChange={(e) => updateGoal(selectedLifeArea, 'daily', e.target.value)}
                                     placeholder="Enter today's ONE Thing..."
                                     className="relative w-full px-5 py-4 bg-slate-900/80 border border-slate-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-white placeholder-slate-500 transition-all text-xl leading-relaxed focus:bg-slate-900 resize-none shadow-inner"
@@ -2748,9 +2907,9 @@
                                 />
                             </div>
 
-                            {goals.daily.updatedAt && (
+                            {todayEntry.updatedAt && (
                                 <p className="text-xs text-slate-500 mt-3 text-right font-mono">
-                                    Last updated: {new Date(goals.daily.updatedAt).toLocaleDateString()}
+                                    Last updated: {new Date(todayEntry.updatedAt).toLocaleDateString()}
                                 </p>
                             )}
                         </div>
