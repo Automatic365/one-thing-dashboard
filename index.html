@@ -2576,6 +2576,16 @@
                             >
                                 Obstacles
                             </button>
+                            <button
+                                onClick={() => setReflectionType('history')}
+                                className={`px-8 py-3 rounded-xl text-sm font-bold tracking-wider uppercase transition-all ${
+                                    reflectionType === 'history'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                History
+                            </button>
                         </div>
                     </div>
 
@@ -2599,7 +2609,7 @@
                             getCurrentQuarterReview={getCurrentQuarterReview}
                             toggleLifeArea={toggleLifeArea}
                         />
-                    ) : (
+                    ) : reflectionType === 'obstacles' ? (
                         <ObstaclesSolutionsTracker
                             lifeAreas={lifeAreas}
                             activeAreas={activeAreas}
@@ -2607,6 +2617,334 @@
                             recordObstacleAttempt={recordObstacleAttempt}
                             deleteObstacleSolution={deleteObstacleSolution}
                         />
+                    ) : (
+                        <ReflectionHistoryBrowser
+                            lifeAreas={lifeAreas}
+                            activeAreas={activeAreas}
+                            selectedLifeArea={selectedLifeArea}
+                            setSelectedLifeArea={setSelectedLifeArea}
+                            setReflectionType={setReflectionType}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        function ReflectionHistoryBrowser({ lifeAreas, activeAreas, selectedLifeArea, setSelectedLifeArea, setReflectionType }) {
+            const [mode, setMode] = React.useState('monthly'); // monthly | quarterly
+            const [selectedKey, setSelectedKey] = React.useState(null); // YYYY-MM | YYYY-Qn
+
+            const getCurrentMonthKey = () => new Date().toISOString().substring(0, 7);
+            const getCurrentQuarterKey = () => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const quarter = Math.floor(now.getMonth() / 3) + 1;
+                return `${year}-Q${quarter}`;
+            };
+
+            const currentMonthKey = getCurrentMonthKey();
+            const currentQuarterKey = getCurrentQuarterKey();
+
+            React.useEffect(() => {
+                if (selectedLifeArea && activeAreas.includes(selectedLifeArea)) return;
+                if (activeAreas.length > 0) setSelectedLifeArea(activeAreas[0]);
+            }, [selectedLifeArea, activeAreas, setSelectedLifeArea]);
+
+            const area = selectedLifeArea ? lifeAreas[selectedLifeArea] : null;
+            const monthlyList = area && area.reviews && Array.isArray(area.reviews.monthly) ? area.reviews.monthly.slice() : [];
+            const quarterlyList = area && area.reviews && Array.isArray(area.reviews.quarterly) ? area.reviews.quarterly.slice() : [];
+            monthlyList.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+            quarterlyList.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+            React.useEffect(() => {
+                if (!selectedLifeArea) return;
+                if (mode === 'monthly') {
+                    if (selectedKey && String(selectedKey).length === 7) return;
+                    if (monthlyList.length > 0) setSelectedKey(monthlyList[0].date);
+                    else setSelectedKey(currentMonthKey);
+                } else {
+                    if (selectedKey && String(selectedKey).includes('-Q')) return;
+                    if (quarterlyList.length > 0) setSelectedKey(quarterlyList[0].date);
+                    else setSelectedKey(currentQuarterKey);
+                }
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [mode, selectedLifeArea]);
+
+            const monthlyByKey = monthlyList.reduce((acc, r) => {
+                if (r && r.date) acc[String(r.date)] = r;
+                return acc;
+            }, {});
+            const quarterlyByKey = quarterlyList.reduce((acc, r) => {
+                if (r && r.date) acc[String(r.date)] = r;
+                return acc;
+            }, {});
+
+            const formatMonthLabel = (yyyyMm) => {
+                const [y, m] = String(yyyyMm).split('-').map(Number);
+                const d = new Date(y, (m || 1) - 1, 1);
+                return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+            };
+
+            const completionOverview = activeAreas.map((areaKey) => {
+                const a = lifeAreas[areaKey];
+                const monthlyDone = Boolean(a && a.reviews && Array.isArray(a.reviews.monthly) && a.reviews.monthly.some(r => r && r.date === currentMonthKey));
+                const quarterlyDone = Boolean(a && a.reviews && Array.isArray(a.reviews.quarterly) && a.reviews.quarterly.some(r => r && r.date === currentQuarterKey));
+                return { areaKey, monthlyDone, quarterlyDone };
+            });
+
+            const selectedMonthly = selectedKey ? monthlyByKey[String(selectedKey)] : null;
+            const selectedQuarterly = selectedKey ? quarterlyByKey[String(selectedKey)] : null;
+            const selectedQuarterConfig = (() => {
+                if (!selectedQuarterly || !selectedQuarterly.date) return null;
+                const q = String(selectedQuarterly.date).split('-Q')[1];
+                const quarterKey = q ? `Q${q}` : null;
+                return quarterKey && QUARTERLY_CONFIG[quarterKey] ? QUARTERLY_CONFIG[quarterKey] : null;
+            })();
+
+            return (
+                <div className="space-y-8 fade-in">
+                    <div className="glass rounded-2xl p-8 border-l-4 border-emerald-500">
+                        <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500 mb-2">
+                            Reflection History
+                        </h2>
+                        <p className="text-slate-400 text-lg">
+                            Browse past reflections and see what’s complete across your life areas.
+                        </p>
+                    </div>
+
+                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                        <div className="flex items-center justify-between flex-wrap gap-4">
+                            <div className="text-left">
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Completion overview</div>
+                                <div className="text-sm text-slate-300 mt-2">
+                                    Current month: <span className="font-mono text-slate-200">{currentMonthKey}</span> · Current quarter:{' '}
+                                    <span className="font-mono text-slate-200">{currentQuarterKey}</span>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setMode('monthly')}
+                                    className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                                        mode === 'monthly'
+                                            ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-200'
+                                            : 'bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                                    }`}
+                                >
+                                    Monthly
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMode('quarterly')}
+                                    className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                                        mode === 'quarterly'
+                                            ? 'bg-purple-500/15 border-purple-500/30 text-purple-200'
+                                            : 'bg-slate-800/40 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                                    }`}
+                                >
+                                    Quarterly
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {completionOverview.map((row) => {
+                                const info = LIFE_AREAS[row.areaKey] || LIFE_AREAS.business;
+                                return (
+                                    <div key={row.areaKey} className="rounded-2xl border border-slate-700/60 bg-slate-800/30 p-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedLifeArea(row.areaKey)}
+                                                className="flex items-center gap-2 text-left"
+                                            >
+                                                <span className="text-xl">{info.icon}</span>
+                                                <span className="font-bold text-slate-100">{info.name}</span>
+                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[10px] font-black px-2 py-1 rounded-full border ${
+                                                    row.monthlyDone ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-slate-900/30 border-slate-700 text-slate-400'
+                                                }`}>
+                                                    M {row.monthlyDone ? 'DONE' : 'MISS'}
+                                                </span>
+                                                <span className={`text-[10px] font-black px-2 py-1 rounded-full border ${
+                                                    row.quarterlyDone ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-slate-900/30 border-slate-700 text-slate-400'
+                                                }`}>
+                                                    Q {row.quarterlyDone ? 'DONE' : 'MISS'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="glass rounded-2xl p-6 border border-slate-700/50">
+                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Life area</label>
+                                <select
+                                    value={selectedLifeArea || ''}
+                                    onChange={(e) => setSelectedLifeArea(e.target.value)}
+                                    className="px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                                >
+                                    {activeAreas.map((areaKey) => (
+                                        <option key={areaKey} value={areaKey}>
+                                            {LIFE_AREAS[areaKey]?.icon || ''} {LIFE_AREAS[areaKey]?.name || areaKey}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                    {mode === 'monthly' ? 'Month' : 'Quarter'}
+                                </label>
+                                <select
+                                    value={selectedKey || ''}
+                                    onChange={(e) => setSelectedKey(e.target.value)}
+                                    className="px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+                                >
+                                    {mode === 'monthly' ? (
+                                        monthlyList.length === 0 ? (
+                                            <option value={currentMonthKey}>{currentMonthKey} (no saved review)</option>
+                                        ) : (
+                                            monthlyList.map((r) => (
+                                                <option key={r.date} value={r.date}>
+                                                    {formatMonthLabel(r.date)} ({r.date})
+                                                </option>
+                                            ))
+                                        )
+                                    ) : (
+                                        quarterlyList.length === 0 ? (
+                                            <option value={currentQuarterKey}>{currentQuarterKey} (no saved review)</option>
+                                        ) : (
+                                            quarterlyList.map((r) => (
+                                                <option key={r.date} value={r.date}>
+                                                    {r.date}
+                                                </option>
+                                            ))
+                                        )
+                                    )}
+                                </select>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!selectedLifeArea) return;
+                                        if (mode === 'monthly') setReflectionType('monthly');
+                                        else setReflectionType('quarterly');
+                                    }}
+                                    className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 font-bold transition-all"
+                                    title="Edit using the main Monthly/Quarterly screens"
+                                >
+                                    Edit current
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {mode === 'monthly' ? (
+                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                            <h3 className="text-xl font-bold text-white mb-6">Monthly Review</h3>
+                            {!selectedMonthly ? (
+                                <div className="text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl p-6 text-center">
+                                    No saved monthly review found for this selection.
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">1. Accomplished</div>
+                                        <div className="text-slate-200 whitespace-pre-wrap">{selectedMonthly.accomplished || '—'}</div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Do differently</div>
+                                        <div className="text-slate-200 whitespace-pre-wrap">{selectedMonthly.doDifferently || '—'}</div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">3. Priorities</div>
+                                        <div className="text-slate-200 whitespace-pre-wrap">{selectedMonthly.priorities || '—'}</div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">4–5. Obstacles & solutions</div>
+                                        <div className="space-y-3">
+                                            {[0, 1, 2].map((i) => (
+                                                <div key={`os:${i}`} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-4">
+                                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Obstacle {i + 1}</div>
+                                                        <div className="text-slate-200 mt-2 whitespace-pre-wrap">
+                                                            {selectedMonthly.obstacles && selectedMonthly.obstacles[i] ? selectedMonthly.obstacles[i] : '—'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-4">
+                                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Solution {i + 1}</div>
+                                                        <div className="text-slate-200 mt-2 whitespace-pre-wrap">
+                                                            {selectedMonthly.solutions && selectedMonthly.solutions[i] ? selectedMonthly.solutions[i] : '—'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="glass rounded-2xl p-8 border border-slate-700/50">
+                            <h3 className="text-xl font-bold text-white mb-6">Quarterly Review</h3>
+                            {!selectedQuarterly ? (
+                                <div className="text-slate-500 border-2 border-dashed border-slate-700/50 rounded-xl p-6 text-center">
+                                    No saved quarterly review found for this selection.
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Reflection</div>
+                                        <div className="space-y-4 mt-4">
+                                            {(selectedQuarterConfig && Array.isArray(selectedQuarterConfig.questions) ? selectedQuarterConfig.questions : ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
+                                                .slice(0, 5)
+                                                .map((q, idx) => {
+                                                    const key = `q${idx + 1}`;
+                                                    return (
+                                                        <div key={`${selectedQuarterly.date}:q:${idx}`} className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-4">
+                                                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{idx + 1}. {q}</div>
+                                                            <div className="text-slate-200 mt-2 whitespace-pre-wrap">
+                                                                {selectedQuarterly[key] || '—'}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </div>
+
+                                    {selectedQuarterConfig && Array.isArray(selectedQuarterConfig.checklist) && (
+                                        <div className="rounded-2xl border border-slate-700/60 bg-slate-900/20 p-6">
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Actions</div>
+                                            <div className="space-y-3">
+                                                {selectedQuarterConfig.checklist.map((item, idx) => {
+                                                    const checked = Boolean(selectedQuarterly.actions && selectedQuarterly.actions[idx]);
+                                                    return (
+                                                        <div key={`${selectedQuarterly.date}:a:${idx}`} className="flex items-start gap-3">
+                                                            <div className={`mt-1 w-5 h-5 rounded-md border flex items-center justify-center ${
+                                                                checked ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200' : 'border-slate-600 text-slate-600'
+                                                            }`}>
+                                                                {checked ? '✓' : ''}
+                                                            </div>
+                                                            <div className={`text-sm ${checked ? 'text-slate-300 line-through opacity-70' : 'text-slate-200'}`}>
+                                                                {item}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             );
