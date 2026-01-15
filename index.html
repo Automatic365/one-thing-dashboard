@@ -2679,14 +2679,15 @@
                             />
                         )}
 
-	                        {currentView === 'progress' && (
-	                            <ProgressTracker
-	                                lifeAreas={state.lifeAreas}
-	                                activeAreas={activeAreas}
-	                                dayNotes={state.dayNotes}
-	                                setDayNote={setDayNote}
-	                            />
-	                        )}
+		                        {currentView === 'progress' && (
+		                            <ProgressTracker
+		                                lifeAreas={state.lifeAreas}
+		                                activeAreas={activeAreas}
+		                                dayNotes={state.dayNotes}
+		                                setDayNote={setDayNote}
+		                                setDailyGoalsForDate={setDailyGoalsForDate}
+		                            />
+		                        )}
 
 	                        {currentView === 'reflect' && (
 	                            <Reflection
